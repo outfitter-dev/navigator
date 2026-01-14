@@ -92,17 +92,13 @@ function discoverPluginPath(): string | null {
 
 	// Monorepo layout: packages/cli/src/ -> ../../agents/
 	const monorepoPath = resolve(cliDir, '..', '..', 'agents')
-	if (
-		existsSync(join(monorepoPath, '.claude-plugin', 'marketplace.json'))
-	) {
+	if (existsSync(join(monorepoPath, '.claude-plugin', 'marketplace.json'))) {
 		return monorepoPath
 	}
 
 	// Standalone layout: dist/ -> ../plugin/
 	const standalonePath = resolve(cliDir, '..', 'plugin')
-	if (
-		existsSync(join(standalonePath, '.claude-plugin', 'marketplace.json'))
-	) {
+	if (existsSync(join(standalonePath, '.claude-plugin', 'marketplace.json'))) {
 		return standalonePath
 	}
 

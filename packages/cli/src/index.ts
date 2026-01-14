@@ -11,11 +11,14 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Command } from 'commander'
 import { type ClientOptions, createClient } from './client.js'
+import { registerDoctorCommand } from './commands/doctor.js'
 import { registerInteractionCommands } from './commands/interaction.js'
 import { registerMarkerCommands } from './commands/markers.js'
 import { registerNavigationCommands } from './commands/navigation.js'
 import { registerSessionCommands } from './commands/session.js'
+import { registerStatusCommand } from './commands/status.js'
 import { registerTabCommands } from './commands/tabs.js'
+import { registerTidyCommand } from './commands/tidy.js'
 import { runInit } from './init.js'
 
 // ============================================================================
@@ -87,6 +90,15 @@ registerTabCommands(program, getClient)
 
 // Session: session, steps
 registerSessionCommands(program, getClient)
+
+// Status: status
+registerStatusCommand(program, getClient)
+
+// Doctor: doctor (no client needed)
+registerDoctorCommand(program)
+
+// Tidy: tidy (no client needed)
+registerTidyCommand(program)
 
 // ============================================================================
 // Special Commands

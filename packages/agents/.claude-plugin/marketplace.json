@@ -1,14 +1,14 @@
 {
-  "name": "navigator",
-  "owner": {
-    "name": "Outfitter Team",
-    "email": "mg@outfitter.dev"
-  },
-  "plugins": [
-    {
-      "name": "navigator",
-      "source": ".",
-      "description": "Browser automation for AI agents"
-    }
-  ]
+	"name": "navigator",
+	"owner": {
+		"name": "Outfitter Team",
+		"email": "mg@outfitter.dev"
+	},
+	"plugins": [
+		{
+			"name": "navigator",
+			"source": ".",
+			"description": "Browser automation for AI agents"
+		}
+	]
 }
