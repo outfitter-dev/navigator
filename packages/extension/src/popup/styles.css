@@ -1,0 +1,77 @@
+@import "tailwindcss";
+@config '../../tailwind.config.cjs';
+@source '../**/*.{ts,tsx,html}';
+
+:root {
+	--background: 0 0% 100%;
+	--foreground: 222 47% 11%;
+	--card: 0 0% 100%;
+	--card-foreground: 222 47% 11%;
+	--popover: 0 0% 100%;
+	--popover-foreground: 222 47% 11%;
+	--primary: 221 83% 53%;
+	--primary-foreground: 0 0% 100%;
+	--secondary: 210 40% 96%;
+	--secondary-foreground: 222 47% 11%;
+	--muted: 210 40% 96%;
+	--muted-foreground: 215 20% 35%;
+	--accent: 221 83% 95%;
+	--accent-foreground: 222 47% 11%;
+	--destructive: 0 84% 60%;
+	--destructive-foreground: 0 0% 100%;
+	--border: 214 20% 90%;
+	--input: 214 20% 90%;
+	--ring: 221 83% 53%;
+	--radius: 0.5rem;
+}
+
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+		sans-serif;
+	background-color: hsl(var(--background));
+	color: hsl(var(--foreground));
+	min-width: 320px;
+}
+
+#root {
+	min-height: 100%;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: hsl(var(--muted));
+	border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: hsl(var(--muted-foreground));
+}
+
+/* Animation utilities */
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.animate-fade-in {
+	animation: fade-in 0.2s ease-out;
+}

@@ -1,0 +1,159 @@
+/**
+ * Marker Commands
+ *
+ * mark, markers, marker
+ */
+
+import type { Command } from 'commander'
+import type { NavigatorClient } from '../client.js'
+
+interface Marker {
+	id: string
+	geometry: {
+		type: string
+		x: number
+		y: number
+		width?: number
+		height?: number
+	}
+	note?: string
+	url?: string
+	createdAt?: string
+}
+
+/**
+ * Format marker coordinates as a string.
+ */
+function formatMarkerCoords(geo: Marker['geometry']): string {
+	if (geo.type === 'region') {
+		return `${geo.x},${geo.y} ${geo.width}x${geo.height}`
+	}
+	return `${geo.x},${geo.y}`
+}
+
+/**
+ * Print markers list in table format.
+ */
+function printMarkersTable(markers: Marker[]): void {
+	if (markers.length === 0) {
+		console.log('No markers found')
+		return
+	}
+
+	console.log('Markers:')
+	for (const marker of markers) {
+		const coords = formatMarkerCoords(marker.geometry)
+		console.log(
+			`  ${marker.id.slice(0, 8)} [${marker.geometry.type}] ${coords}`,
+		)
+		if (marker.note) {
+			console.log(`    Note: ${marker.note}`)
+		}
+	}
+}
+
+export function registerMarkerCommands(
+	program: Command,
+	getClient: () => NavigatorClient,
+): void {
+	// nav mark
+	program
+		.command('mark')
+		.description('Create marker at coordinates')
+		.option('-x <number>', 'X coordinate')
+		.option('-y <number>', 'Y coordinate')
+		.option('-w, --width <number>', 'Width (for region)')
+		.option('-h, --height <number>', 'Height (for region)')
+		.option('-n, --note <text>', 'Note for marker')
+		.action(async (options) => {
+			const client = getClient()
+
+			const x = options.x ? Number(options.x) : 0
+			const y = options.y ? Number(options.y) : 0
+
+			const hasRegion =
+				options.width !== undefined && options.height !== undefined
+
+			const geometry = hasRegion
+				? {
+						type: 'region' as const,
+						x,
+						y,
+						width: Number(options.width),
+						height: Number(options.height),
+					}
+				: { type: 'point' as const, x, y }
+
+			const result = await client.execute<{ marker: Marker }>({
+				action: 'marker',
+				geometry,
+				note: options.note,
+			})
+
+			console.log('Created marker:', result.marker?.id ?? 'unknown')
+		})
+
+	// nav markers
+	program
+		.command('markers')
+		.description('List all markers')
+		.option('--md', 'Output as markdown')
+		.action(async (options) => {
+			const client = getClient()
+			const result = await client.execute<{ markers: Marker[] }>({
+				action: 'markers',
+				format: options.md ? 'markdown' : 'json',
+			})
+
+			if (options.md) {
+				// If server returns markdown, print it
+				console.log(result)
+			} else {
+				// Format as table
+				printMarkersTable(result.markers ?? [])
+			}
+		})
+
+	// nav marker <id>
+	program
+		.command('marker <id>')
+		.description('Get marker details')
+		.action(async (id: string) => {
+			const client = getClient()
+			const result = await client.execute<{ marker: Marker }>({
+				action: 'markerGet',
+				id,
+			})
+
+			console.log(JSON.stringify(result.marker, null, 2))
+		})
+
+	// nav marker-compare <id1> <id2>
+	program
+		.command('marker-compare <id1> <id2>')
+		.description('Compare two markers')
+		.action(async (id1: string, id2: string) => {
+			const client = getClient()
+			const result = await client.execute({
+				action: 'markerCompare',
+				id1,
+				id2,
+			})
+
+			console.log(JSON.stringify(result, null, 2))
+		})
+
+	// nav marker-delete <id>
+	program
+		.command('marker-delete <id>')
+		.description('Delete a marker')
+		.action(async (id: string) => {
+			const client = getClient()
+			await client.execute({
+				action: 'markerDelete',
+				id,
+			})
+
+			console.log('Deleted marker:', id)
+		})
+}

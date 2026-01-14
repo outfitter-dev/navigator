@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "navigator": {
+      "command": "nav",
+      "args": ["mcp"]
+    }
+  }
+}

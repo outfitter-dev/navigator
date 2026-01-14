@@ -1,0 +1,13 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"noEmit": true,
+		"types": ["vite/client", "chrome"],
+		"paths": {
+			"@/*": ["./src/*"]
+		},
+		"composite": true
+	},
+	"include": ["src/**/*"]
+}

@@ -1,0 +1,19 @@
+{
+	"name": "navigator",
+	"private": true,
+	"workspaces": ["packages/*"],
+	"scripts": {
+		"dev": "bun run --filter @outfitter/navigator-server dev",
+		"dev:mcp": "bun run --filter @outfitter/navigator-mcp dev",
+		"build": "bun run --filter '*' build",
+		"typecheck": "bun run --filter '*' typecheck",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write .",
+		"test": "bun test"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"typescript": "^5.7.2"
+	}
+}

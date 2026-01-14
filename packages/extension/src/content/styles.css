@@ -1,0 +1,105 @@
+/**
+ * Navigator Content Script Styles
+ *
+ * Styles for marker mode overlay and selection UI
+ */
+
+/* Marker selection overlay - shows during drag */
+.navigator-marker-overlay {
+	position: fixed;
+	border: 2px dashed #3b82f6;
+	background: rgba(59, 130, 246, 0.1);
+	pointer-events: none;
+	z-index: 2147483647;
+	display: none;
+	border-radius: 4px;
+	box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3);
+}
+
+/* Mode indicator - shows when marker mode is active */
+.navigator-mode-indicator {
+	position: fixed;
+	top: 12px;
+	right: 12px;
+	padding: 10px 16px;
+	background: linear-gradient(135deg, #3b82f6, #2563eb);
+	color: white;
+	border-radius: 8px;
+	font-family: system-ui, -apple-system, sans-serif;
+	font-size: 13px;
+	font-weight: 500;
+	z-index: 2147483647;
+	box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1);
+	pointer-events: none;
+	animation: navigator-fade-in 0.2s ease-out;
+}
+
+/* Paired mode indicator */
+.navigator-paired-indicator {
+	position: fixed;
+	inset: 8px;
+	border: 2px solid rgba(16, 185, 129, 0.8);
+	border-radius: 12px;
+	pointer-events: none;
+	z-index: 2147483646;
+	animation: navigator-pulse 2s ease-in-out infinite;
+}
+
+/* Animations */
+@keyframes navigator-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(-8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes navigator-pulse {
+	0%,
+	100% {
+		box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+	}
+	50% {
+		box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
+	}
+}
+
+/* Element highlight on hover during marker mode */
+.navigator-highlight {
+	outline: 2px solid #3b82f6 !important;
+	outline-offset: 2px !important;
+	background-color: rgba(59, 130, 246, 0.05) !important;
+}
+
+/* Point marker indicator */
+.navigator-point-marker {
+	position: fixed;
+	width: 20px;
+	height: 20px;
+	margin-left: -10px;
+	margin-top: -10px;
+	border-radius: 50%;
+	background: #3b82f6;
+	border: 2px solid white;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	pointer-events: none;
+	z-index: 2147483647;
+	animation: navigator-point-pop 0.3s ease-out;
+}
+
+@keyframes navigator-point-pop {
+	0% {
+		transform: scale(0);
+		opacity: 0;
+	}
+	50% {
+		transform: scale(1.2);
+	}
+	100% {
+		transform: scale(1);
+		opacity: 1;
+	}
+}
