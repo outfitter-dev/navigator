@@ -49,4 +49,6 @@ export {
 	type StepResult,
 	StepResultSchema,
 	StepSchema,
+	type StepSource,
+	StepSourceSchema,
 } from './session'

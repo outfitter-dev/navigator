@@ -117,12 +117,13 @@ export class ActionExecutor {
 			meta: this.extractResultMeta(action, result),
 		})
 
-		// Log step
+		// Log step with source='agent' for all API/MCP actions
 		try {
 			await this.stepLogger.logStep(
 				action,
 				{ success: result.success, error: result.error, data: result.data },
 				duration,
+				'agent',
 			)
 			await this.sessionManager.touchSession()
 		} catch {

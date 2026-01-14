@@ -35,12 +35,19 @@ export const StepResultSchema = z.object({
 
 export type StepResult = z.infer<typeof StepResultSchema>
 
+/**
+ * Source of a step/action - distinguishes agent actions from user actions.
+ */
+export const StepSourceSchema = z.enum(['agent', 'user'])
+export type StepSource = z.infer<typeof StepSourceSchema>
+
 export const StepSchema = z.object({
 	id: z.string().uuid(),
 	timestamp: z.string().datetime(),
 	action: ActionSchema,
 	result: StepResultSchema,
 	duration: z.number(), // ms
+	source: StepSourceSchema.optional(),
 })
 
 export type Step = z.infer<typeof StepSchema>

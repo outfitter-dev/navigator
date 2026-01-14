@@ -14,6 +14,7 @@ import {
 	type Step,
 	type StepResult,
 	StepSchema,
+	type StepSource,
 	getStepsPath,
 } from '@outfitter/navigator-core'
 
@@ -32,12 +33,14 @@ export class StepLogger {
 	 * @param action - The action that was executed
 	 * @param result - The result of the action
 	 * @param duration - Execution time in ms
+	 * @param source - Source of the action ('agent' or 'user')
 	 * @returns The logged step
 	 */
 	async logStep(
 		action: Action,
 		result: StepResult,
 		duration: number,
+		source?: StepSource,
 	): Promise<Step> {
 		const step: Step = {
 			id: randomUUID(),
@@ -45,6 +48,7 @@ export class StepLogger {
 			action,
 			result,
 			duration,
+			source,
 		}
 
 		// Validate before writing

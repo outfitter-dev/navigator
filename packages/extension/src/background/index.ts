@@ -11,6 +11,14 @@ let ws: WebSocket | null = null
 let connected = false
 let pairedMode = false
 
+// Store viewport per tab
+const tabViewports = new Map<number, { width: number; height: number }>()
+
+interface Viewport {
+	width: number
+	height: number
+}
+
 interface ServerMessage {
 	type: string
 	id?: string
@@ -133,11 +141,21 @@ function handleServerMessage(message: ServerMessage): void {
 			})
 			break
 
-		case 'status':
+		case 'status': {
 			// Server status update
+			const wasPaired = pairedMode
 			pairedMode = message.paired ?? false
 			broadcast({ type: 'pairedModeChanged', paired: pairedMode })
+
+			// Notify content scripts of paired mode change
+			if (pairedMode !== wasPaired) {
+				notifyContentScripts({
+					type: 'navigator:pairedModeStatus',
+					pairedMode,
+				})
+			}
 			break
+		}
 	}
 }
 
@@ -202,7 +220,61 @@ async function sendTabs(): Promise<void> {
 				url: tab.url || '',
 				title: tab.title || '',
 				active: tab.active,
+				viewport: tab.id ? tabViewports.get(tab.id) : undefined,
 			})),
+		}),
+	)
+}
+
+/**
+ * Send viewport update to the server
+ */
+function sendViewportUpdate(
+	tabId: number,
+	viewport: Viewport,
+	url: string,
+	title: string,
+): void {
+	if (ws?.readyState !== WebSocket.OPEN) {
+		return
+	}
+
+	// Store viewport for this tab
+	tabViewports.set(tabId, viewport)
+
+	// Send viewport update message
+	ws.send(
+		JSON.stringify({
+			type: 'viewportUpdate',
+			tabId,
+			viewport,
+			url,
+			title,
+		}),
+	)
+}
+
+/**
+ * Send user action event to the server
+ */
+function sendUserAction(
+	tabId: number,
+	action: string,
+	target?: string,
+	url?: string,
+): void {
+	if (ws?.readyState !== WebSocket.OPEN) {
+		return
+	}
+
+	ws.send(
+		JSON.stringify({
+			type: 'userAction',
+			tabId,
+			action,
+			target,
+			url,
+			timestamp: new Date().toISOString(),
 		}),
 	)
 }
@@ -225,8 +297,14 @@ chrome.runtime.onMessage.addListener(
 			type: string
 			port?: number
 			payload?: Record<string, unknown>
+			viewport?: Viewport
+			url?: string
+			title?: string
+			action?: string
+			target?: string
+			timestamp?: string
 		},
-		_sender,
+		sender,
 		sendResponse,
 	) => {
 		switch (message.type) {
@@ -242,6 +320,8 @@ chrome.runtime.onMessage.addListener(
 			case 'enablePaired':
 				if (ws?.readyState === WebSocket.OPEN) {
 					ws.send(JSON.stringify({ type: 'enablePaired' }))
+					// Notify content scripts to start tracking user actions
+					notifyContentScripts({ type: 'navigator:enablePairedMode' })
 					sendResponse({ success: true })
 				} else {
 					sendResponse({ success: false, error: 'Not connected' })
@@ -251,6 +331,8 @@ chrome.runtime.onMessage.addListener(
 			case 'disablePaired':
 				if (ws?.readyState === WebSocket.OPEN) {
 					ws.send(JSON.stringify({ type: 'disablePaired' }))
+					// Notify content scripts to stop tracking user actions
+					notifyContentScripts({ type: 'navigator:disablePairedMode' })
 					sendResponse({ success: true })
 				} else {
 					sendResponse({ success: false, error: 'Not connected' })
@@ -296,11 +378,53 @@ chrome.runtime.onMessage.addListener(
 					return true // Keep channel open for async response
 				}
 				break
+
+			case 'viewportUpdate':
+				// Forward viewport update from content script to server
+				if (sender.tab?.id && message.viewport) {
+					sendViewportUpdate(
+						sender.tab.id,
+						message.viewport,
+						message.url ?? '',
+						message.title ?? '',
+					)
+				}
+				sendResponse({ success: true })
+				break
+
+			case 'userAction':
+				// Forward user action from content script to server
+				if (sender.tab?.id && message.action && pairedMode) {
+					sendUserAction(
+						sender.tab.id,
+						message.action,
+						message.target,
+						message.url,
+					)
+				}
+				sendResponse({ success: true })
+				break
 		}
 
 		return true // Keep channel open
 	},
 )
+
+/**
+ * Notify all content scripts of paired mode status changes
+ */
+async function notifyContentScripts(
+	message: Record<string, unknown>,
+): Promise<void> {
+	const tabs = await chrome.tabs.query({ currentWindow: true })
+	for (const tab of tabs) {
+		if (tab.id) {
+			chrome.tabs.sendMessage(tab.id, message).catch(() => {
+				// Ignore errors for tabs without content scripts
+			})
+		}
+	}
+}
 
 // Tab change listeners - keep server informed
 chrome.tabs.onActivated.addListener(() => sendTabs())

@@ -3,10 +3,12 @@
  *
  * Handles marker mode (click/drag to annotate UI elements) and
  * executes agent actions in Paired mode.
+ * Reports viewport dimensions and user actions for paired mode.
  */
 
 // State
 let markerMode = false
+let userActionListenersActive = false
 let startPoint: { x: number; y: number } | null = null
 let overlay: HTMLDivElement | null = null
 let modeIndicator: HTMLDivElement | null = null
@@ -57,6 +59,151 @@ interface ActionResult {
 	success: boolean
 	data?: unknown
 	error?: string
+}
+
+interface Viewport {
+	width: number
+	height: number
+}
+
+interface UserActionEvent {
+	type: 'userAction'
+	action: 'click' | 'type' | 'navigate' | 'scroll'
+	target?: string | undefined
+	url?: string | undefined
+	timestamp: string
+}
+
+// ============================================================================
+// Viewport Detection
+// ============================================================================
+
+/**
+ * Get current viewport dimensions
+ */
+function getViewport(): Viewport {
+	return {
+		width: window.innerWidth,
+		height: window.innerHeight,
+	}
+}
+
+/**
+ * Report viewport to background script
+ */
+function reportViewport(): void {
+	const viewport = getViewport()
+	chrome.runtime
+		.sendMessage({
+			type: 'viewportUpdate',
+			viewport,
+			url: window.location.href,
+			title: document.title,
+		})
+		.catch(() => {
+			// Ignore errors when no listeners
+		})
+}
+
+/**
+ * Handle viewport resize events with debounce
+ */
+let resizeTimeout: ReturnType<typeof setTimeout> | null = null
+function handleResize(): void {
+	if (resizeTimeout) {
+		clearTimeout(resizeTimeout)
+	}
+	resizeTimeout = setTimeout(() => {
+		reportViewport()
+		resizeTimeout = null
+	}, 150)
+}
+
+// ============================================================================
+// User Action Detection (for paired mode)
+// ============================================================================
+
+/**
+ * Send user action event to background script
+ */
+function sendUserActionEvent(event: UserActionEvent): void {
+	chrome.runtime.sendMessage(event).catch(() => {
+		// Ignore errors when no listeners
+	})
+}
+
+/**
+ * Handle user click events
+ */
+function handleUserClick(event: MouseEvent): void {
+	// Ignore clicks on our overlay elements
+	const target = event.target as HTMLElement
+	if (target?.hasAttribute?.('data-navigator-overlay')) return
+	if (markerMode) return
+
+	const selector = target ? getSelector(target) : undefined
+	sendUserActionEvent({
+		type: 'userAction',
+		action: 'click',
+		target: selector,
+		timestamp: new Date().toISOString(),
+	})
+}
+
+/**
+ * Handle user input events (typing)
+ */
+function handleUserInput(event: Event): void {
+	const target = event.target as HTMLElement
+	if (!target) return
+
+	const selector = getSelector(target)
+	sendUserActionEvent({
+		type: 'userAction',
+		action: 'type',
+		target: selector,
+		timestamp: new Date().toISOString(),
+	})
+}
+
+/**
+ * Handle user scroll events with debounce
+ */
+let scrollTimeout: ReturnType<typeof setTimeout> | null = null
+function handleUserScroll(): void {
+	if (scrollTimeout) return
+	scrollTimeout = setTimeout(() => {
+		sendUserActionEvent({
+			type: 'userAction',
+			action: 'scroll',
+			timestamp: new Date().toISOString(),
+		})
+		scrollTimeout = null
+	}, 200)
+}
+
+/**
+ * Enable user action listeners
+ */
+function enableUserActionListeners(): void {
+	if (userActionListenersActive) return
+	userActionListenersActive = true
+
+	document.addEventListener('click', handleUserClick, true)
+	document.addEventListener('input', handleUserInput, true)
+	document.addEventListener('scroll', handleUserScroll, true)
+}
+
+/**
+ * Disable user action listeners
+ */
+function disableUserActionListeners(): void {
+	if (!userActionListenersActive) return
+	userActionListenersActive = false
+
+	document.removeEventListener('click', handleUserClick, true)
+	document.removeEventListener('input', handleUserInput, true)
+	document.removeEventListener('scroll', handleUserScroll, true)
 }
 
 /**
@@ -530,6 +677,7 @@ chrome.runtime.onMessage.addListener(
 			type: string
 			enabled?: boolean
 			action?: ActionPayload
+			pairedMode?: boolean
 		},
 		_sender,
 		sendResponse,
@@ -555,13 +703,56 @@ chrome.runtime.onMessage.addListener(
 				break
 
 			case 'navigator:getStatus':
-				sendResponse({ markerMode })
+				sendResponse({ markerMode, viewport: getViewport() })
+				break
+
+			case 'navigator:getViewport':
+				sendResponse({ viewport: getViewport() })
+				break
+
+			case 'navigator:enablePairedMode':
+				enableUserActionListeners()
+				sendResponse({ success: true })
+				break
+
+			case 'navigator:disablePairedMode':
+				disableUserActionListeners()
+				sendResponse({ success: true })
+				break
+
+			case 'navigator:pairedModeStatus':
+				if (message.pairedMode) {
+					enableUserActionListeners()
+				} else {
+					disableUserActionListeners()
+				}
+				sendResponse({ success: true })
 				break
 		}
 
 		return true // Keep channel open for async response
 	},
 )
+
+// ============================================================================
+// Initialization
+// ============================================================================
+
+// Set up resize listener for viewport reporting
+window.addEventListener('resize', handleResize)
+
+// Report initial viewport on load
+reportViewport()
+
+// Listen for navigation events (popstate for SPA navigation)
+window.addEventListener('popstate', () => {
+	sendUserActionEvent({
+		type: 'userAction',
+		action: 'navigate',
+		url: window.location.href,
+		timestamp: new Date().toISOString(),
+	})
+})
 
 // Log content script initialization
 console.log('[Navigator] Content script loaded')
