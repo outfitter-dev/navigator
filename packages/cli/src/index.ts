@@ -19,6 +19,8 @@ import { registerSessionCommands } from './commands/session.js'
 import { registerStatusCommand } from './commands/status.js'
 import { registerTabCommands } from './commands/tabs.js'
 import { registerTidyCommand } from './commands/tidy.js'
+import { registerUninstallCommand } from './commands/uninstall.js'
+import { registerUpdateCommand } from './commands/update.js'
 import { registerWatchCommand } from './commands/watch.js'
 import { runInit } from './init.js'
 
@@ -103,6 +105,12 @@ registerDoctorCommand(program)
 
 // Tidy: tidy (no client needed)
 registerTidyCommand(program)
+
+// Update: update (no client needed)
+registerUpdateCommand(program)
+
+// Uninstall: uninstall (no client needed)
+registerUninstallCommand(program)
 
 // ============================================================================
 // Special Commands
