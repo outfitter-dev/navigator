@@ -66,8 +66,12 @@ export type ViewportConfig = z.infer<typeof ViewportConfigSchema>
 /**
  * Load configuration from the default config file.
  *
- * Looks for ~/.config/navigator/config.yaml
- * Returns default config if file doesn't exist.
+ * Searches for config.yaml in these directories (first existing wins):
+ * 1. $XDG_CONFIG_HOME/navigator/ (if XDG_CONFIG_HOME is set)
+ * 2. ~/.config/navigator/
+ * 3. ~/.navigator/
+ *
+ * Returns default config if no config file is found.
  *
  * @returns Parsed and validated configuration
  */
