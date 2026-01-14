@@ -21,6 +21,7 @@ import { MarkerStore, markersToMarkdown } from '../markers'
 import type { PairedManager } from '../paired/manager'
 import type { SessionManager } from '../session/manager'
 import { StepLogger } from '../session/step-logger'
+import { type WatchEvent, watchBroadcaster } from '../watch'
 
 // ============================================================================
 // Types
@@ -78,6 +79,18 @@ export class ActionExecutor {
 		}
 
 		const start = Date.now()
+		const target = this.extractActionTarget(action)
+
+		// Broadcast action start
+		this.broadcastEvent({
+			ts: new Date().toISOString(),
+			type: 'action',
+			source: 'agent',
+			action: action.action,
+			target,
+			status: 'start',
+		})
+
 		let result: ActionResult
 
 		try {
@@ -90,6 +103,19 @@ export class ActionExecutor {
 		}
 
 		const duration = Date.now() - start
+
+		// Broadcast action result
+		this.broadcastEvent({
+			ts: new Date().toISOString(),
+			type: 'action',
+			source: 'agent',
+			action: action.action,
+			target,
+			status: result.success ? 'success' : 'error',
+			duration,
+			error: result.error,
+			meta: this.extractResultMeta(action, result),
+		})
 
 		// Log step
 		try {
@@ -1121,5 +1147,109 @@ export class ActionExecutor {
 		return tree
 			.replace(/\bref=e(\d+)(?!_)/g, `ref=e$1_${version}`)
 			.replace(/([@#$%])e(\d+)(?!_)/g, `$1e$2_${version}`)
+	}
+
+	// ============================================================================
+	// Watch Broadcast Helpers
+	// ============================================================================
+
+	/**
+	 * Broadcast a watch event to connected clients.
+	 */
+	private broadcastEvent(event: WatchEvent): void {
+		watchBroadcaster.broadcast(event)
+	}
+
+	/**
+	 * Extract a human-readable target from an action for watch display.
+	 */
+	private extractActionTarget(action: Action): string | undefined {
+		switch (action.action) {
+			case 'navigate':
+				return action.url
+			case 'click':
+			case 'type':
+			case 'select':
+			case 'hover':
+			case 'focus':
+			case 'scroll':
+			case 'waitFor':
+				return action.ref ?? action.selector
+			case 'tab':
+			case 'closeTab':
+				return action.ref !== undefined ? String(action.ref) : undefined
+			case 'newTab':
+				return action.url
+			case 'screenshot':
+				return (
+					action.ref ??
+					action.selector ??
+					(action.fullPage ? 'fullPage' : undefined)
+				)
+			case 'snap':
+				return action.mode ?? 'full'
+			case 'marker':
+				return action.geometry?.type
+			case 'markerGet':
+			case 'markerDelete':
+				return action.id
+			case 'markerCompare':
+				return `${action.id1} vs ${action.id2}`
+			case 'viewport':
+				return (
+					action.preset ??
+					(action.width && action.height
+						? `${action.width}x${action.height}`
+						: undefined)
+				)
+			case 'colorScheme':
+				return action.scheme
+			case 'mode':
+				return action.target
+			case 'evaluate':
+				return action.script?.slice(0, 50)
+			case 'wait':
+				return `${action.ms}ms`
+			default:
+				return undefined
+		}
+	}
+
+	/**
+	 * Extract result metadata for watch display.
+	 */
+	private extractResultMeta(
+		action: Action,
+		result: ActionResult,
+	): Record<string, unknown> | undefined {
+		if (!result.success) return undefined
+
+		switch (action.action) {
+			case 'snap':
+				if (result.snapshot) {
+					return {
+						elementCount: result.snapshot.interactiveCount,
+						url: result.snapshot.url,
+					}
+				}
+				break
+			case 'tabs':
+				if (result.extractedContent) {
+					try {
+						const tabs = JSON.parse(result.extractedContent) as unknown[]
+						return { tabCount: tabs.length }
+					} catch {
+						// Ignore parse errors
+					}
+				}
+				break
+			case 'markers':
+				if (result.data && Array.isArray(result.data)) {
+					return { markerCount: result.data.length }
+				}
+				break
+		}
+
+		return undefined
 	}
 }

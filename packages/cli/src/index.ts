@@ -19,6 +19,7 @@ import { registerSessionCommands } from './commands/session.js'
 import { registerStatusCommand } from './commands/status.js'
 import { registerTabCommands } from './commands/tabs.js'
 import { registerTidyCommand } from './commands/tidy.js'
+import { registerWatchCommand } from './commands/watch.js'
 import { runInit } from './init.js'
 
 // ============================================================================
@@ -93,6 +94,9 @@ registerSessionCommands(program, getClient)
 
 // Status: status
 registerStatusCommand(program, getClient)
+
+// Watch: watch
+registerWatchCommand(program, getClient)
 
 // Doctor: doctor (no client needed)
 registerDoctorCommand(program)

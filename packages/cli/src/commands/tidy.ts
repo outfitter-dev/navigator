@@ -4,9 +4,9 @@
  * Cleans up old Navigator sessions.
  */
 
-import { createInterface } from 'node:readline'
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { createInterface } from 'node:readline'
 import { getNavigatorDataDir } from '@outfitter/navigator-core'
 import type { Command } from 'commander'
 
