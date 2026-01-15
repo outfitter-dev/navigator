@@ -21,6 +21,7 @@ import { MarkerStore, markersToMarkdown } from '../markers'
 import type { PairedManager } from '../paired/manager'
 import type { SessionManager } from '../session/manager'
 import { StepLogger } from '../session/step-logger'
+import { type WatchEvent, watchBroadcaster } from '../watch'
 
 // ============================================================================
 // Types
@@ -78,6 +79,18 @@ export class ActionExecutor {
 		}
 
 		const start = Date.now()
+		const target = this.extractActionTarget(action)
+
+		// Broadcast action start
+		this.broadcastEvent({
+			ts: new Date().toISOString(),
+			type: 'action',
+			source: 'agent',
+			action: action.action,
+			target,
+			status: 'start',
+		})
+
 		let result: ActionResult
 
 		try {
@@ -91,12 +104,26 @@ export class ActionExecutor {
 
 		const duration = Date.now() - start
 
-		// Log step
+		// Broadcast action result
+		this.broadcastEvent({
+			ts: new Date().toISOString(),
+			type: 'action',
+			source: 'agent',
+			action: action.action,
+			target,
+			status: result.success ? 'success' : 'error',
+			duration,
+			error: result.error,
+			meta: this.extractResultMeta(action, result),
+		})
+
+		// Log step with source='agent' for all API/MCP actions
 		try {
 			await this.stepLogger.logStep(
 				action,
 				{ success: result.success, error: result.error, data: result.data },
 				duration,
+				'agent',
 			)
 			await this.sessionManager.touchSession()
 		} catch {
@@ -625,77 +652,105 @@ export class ActionExecutor {
 
 		return this.withTab(tab, async () => {
 			const version = this.browserManager.getSnapshotVersion() + 1
-
-			const urlResult = await this.browserManager.send<{ url: string }>({
-				action: 'url',
-			})
-			const titleResult = await this.browserManager.send<{ title: string }>({
-				action: 'title',
-			})
-			const url =
-				urlResult.success && urlResult.data?.url ? urlResult.data.url : ''
-			const title =
-				titleResult.success && titleResult.data?.title
-					? titleResult.data.title
-					: ''
+			const { url, title } = await this.getPageInfo()
 
 			if (mode === 'text_only') {
-				const textResult = await this.browserManager.send<{ text?: string }>({
-					action: 'gettext',
-					selector: 'body',
-				})
-				const text = textResult.success ? (textResult.data?.text ?? '') : ''
-				this.browserManager.incrementSnapshotVersion()
-				return {
-					success: true,
-					snapshot: {
-						version,
-						timestamp: Date.now(),
-						url,
-						title,
-						tree: text,
-						mode: mode ?? 'full',
-						interactiveCount: 0,
-					},
-				}
+				return this.createTextSnapshot(version, url, title, mode ?? 'full')
 			}
 
-			const interactive = options.interactive ?? mode === 'input_fields'
-			const response = await this.browserManager.send<{
-				snapshot?: string
-				refs?: Record<string, unknown>
-			}>({
-				action: 'snapshot',
-				interactive,
-				compact: options.compact,
-				maxDepth: options.depth,
-				selector: options.selector,
-			})
-
-			if (!(response.success && response.data?.snapshot)) {
-				return { success: false, error: response.error ?? 'Snapshot failed' }
-			}
-
-			const snapshotText = this.rewriteSnapshotRefs(
-				response.data.snapshot,
-				version,
-			)
-			const refs = response.data.refs ?? {}
-
-			this.browserManager.incrementSnapshotVersion()
-			return {
-				success: true,
-				snapshot: {
-					version,
-					timestamp: Date.now(),
-					url,
-					title,
-					tree: snapshotText,
-					mode: mode ?? 'full',
-					interactiveCount: Object.keys(refs).length,
-				},
-			}
+			return this.createDomSnapshot(version, url, title, mode, options)
 		})
+	}
+
+	private async getPageInfo(): Promise<{ url: string; title: string }> {
+		const urlResult = await this.browserManager.send<{ url: string }>({
+			action: 'url',
+		})
+		const titleResult = await this.browserManager.send<{ title: string }>({
+			action: 'title',
+		})
+		return {
+			url: urlResult.success && urlResult.data?.url ? urlResult.data.url : '',
+			title:
+				titleResult.success && titleResult.data?.title
+					? titleResult.data.title
+					: '',
+		}
+	}
+
+	private async createTextSnapshot(
+		version: number,
+		url: string,
+		title: string,
+		mode: 'full' | 'interactive' | 'input_fields' | 'text_only',
+	): Promise<ActionResult> {
+		const textResult = await this.browserManager.send<{ text?: string }>({
+			action: 'gettext',
+			selector: 'body',
+		})
+		const text = textResult.success ? (textResult.data?.text ?? '') : ''
+		this.browserManager.incrementSnapshotVersion()
+		return {
+			success: true,
+			snapshot: {
+				version,
+				timestamp: Date.now(),
+				url,
+				title,
+				tree: text,
+				mode,
+				interactiveCount: 0,
+			},
+		}
+	}
+
+	private async createDomSnapshot(
+		version: number,
+		url: string,
+		title: string,
+		mode: 'full' | 'interactive' | 'input_fields' | 'text_only' | undefined,
+		options: {
+			interactive?: boolean | undefined
+			compact?: boolean | undefined
+			depth?: number | undefined
+			selector?: string | undefined
+		},
+	): Promise<ActionResult> {
+		const interactive = options.interactive ?? mode === 'input_fields'
+		const response = await this.browserManager.send<{
+			snapshot?: string
+			refs?: Record<string, unknown>
+		}>({
+			action: 'snapshot',
+			interactive,
+			compact: options.compact,
+			maxDepth: options.depth,
+			selector: options.selector,
+		})
+
+		if (!(response.success && response.data?.snapshot)) {
+			return { success: false, error: response.error ?? 'Snapshot failed' }
+		}
+
+		const snapshotText = this.rewriteSnapshotRefs(
+			response.data.snapshot,
+			version,
+		)
+		const refs = response.data.refs ?? {}
+
+		this.browserManager.incrementSnapshotVersion()
+		return {
+			success: true,
+			snapshot: {
+				version,
+				timestamp: Date.now(),
+				url,
+				title,
+				tree: snapshotText,
+				mode: mode ?? 'full',
+				interactiveCount: Object.keys(refs).length,
+			},
+		}
 	}
 
 	private async getHtml(
@@ -1090,20 +1145,35 @@ export class ActionExecutor {
 		return this.withTab(tab, () => this.browserManager.send<T>(command))
 	}
 
+	private parseTabIndexFromString(ref: string): number | null {
+		if (NUMERIC_STRING_PATTERN.test(ref)) return Number(ref)
+		if (ref.startsWith('b')) {
+			const parsed = Number(ref.slice(1))
+			return Number.isNaN(parsed) ? null : parsed
+		}
+		return null
+	}
+
+	private async resolveTabIndexFromHash(ref: string): Promise<number | null> {
+		if (ref.length !== 4) return null
+		const tabs = await this.browserManager.getTabs()
+		const match = tabs.find((tab) => tab.urlHash === ref)
+		if (!match) return null
+		if (typeof match.ref === 'number') return match.ref
+		if (typeof match.ref === 'string') {
+			return this.parseTabIndexFromString(match.ref)
+		}
+		return null
+	}
+
 	private async resolveTabIndex(ref?: TabRef): Promise<number | null> {
 		if (ref === undefined || ref === null) return null
 		if (typeof ref === 'number') return ref
 		if (typeof ref === 'string') {
-			if (NUMERIC_STRING_PATTERN.test(ref)) return Number(ref)
-			if (ref.startsWith('b')) {
-				const parsed = Number(ref.slice(1))
-				return Number.isNaN(parsed) ? null : parsed
-			}
-			if (ref.length === 4) {
-				const tabs = await this.browserManager.getTabs()
-				const match = tabs.find((tab) => tab.urlHash === ref)
-				return match ? (match.ref as number) : null
-			}
+			const numericRef = this.parseTabIndexFromString(ref)
+			if (numericRef !== null) return numericRef
+			const hashRef = await this.resolveTabIndexFromHash(ref)
+			if (hashRef !== null) return hashRef
 		}
 		return null
 	}
@@ -1121,5 +1191,109 @@ export class ActionExecutor {
 		return tree
 			.replace(/\bref=e(\d+)(?!_)/g, `ref=e$1_${version}`)
 			.replace(/([@#$%])e(\d+)(?!_)/g, `$1e$2_${version}`)
+	}
+
+	// ============================================================================
+	// Watch Broadcast Helpers
+	// ============================================================================
+
+	/**
+	 * Broadcast a watch event to connected clients.
+	 */
+	private broadcastEvent(event: WatchEvent): void {
+		watchBroadcaster.broadcast(event)
+	}
+
+	/**
+	 * Extract a human-readable target from an action for watch display.
+	 */
+	private extractActionTarget(action: Action): string | undefined {
+		switch (action.action) {
+			case 'navigate':
+				return action.url
+			case 'click':
+			case 'type':
+			case 'select':
+			case 'hover':
+			case 'focus':
+			case 'scroll':
+			case 'waitFor':
+				return action.ref ?? action.selector
+			case 'tab':
+			case 'closeTab':
+				return action.ref !== undefined ? String(action.ref) : undefined
+			case 'newTab':
+				return action.url
+			case 'screenshot':
+				return (
+					action.ref ??
+					action.selector ??
+					(action.fullPage ? 'fullPage' : undefined)
+				)
+			case 'snap':
+				return action.mode ?? 'full'
+			case 'marker':
+				return action.geometry?.type
+			case 'markerGet':
+			case 'markerDelete':
+				return action.id
+			case 'markerCompare':
+				return `${action.id1} vs ${action.id2}`
+			case 'viewport':
+				return (
+					action.preset ??
+					(action.width && action.height
+						? `${action.width}x${action.height}`
+						: undefined)
+				)
+			case 'colorScheme':
+				return action.scheme
+			case 'mode':
+				return action.target
+			case 'evaluate':
+				return action.script?.slice(0, 50)
+			case 'wait':
+				return `${action.ms}ms`
+			default:
+				return undefined
+		}
+	}
+
+	/**
+	 * Extract result metadata for watch display.
+	 */
+	private extractResultMeta(
+		action: Action,
+		result: ActionResult,
+	): Record<string, unknown> | undefined {
+		if (!result.success) return undefined
+
+		switch (action.action) {
+			case 'snap':
+				if (result.snapshot) {
+					return {
+						elementCount: result.snapshot.interactiveCount,
+						url: result.snapshot.url,
+					}
+				}
+				break
+			case 'tabs':
+				if (result.extractedContent) {
+					try {
+						const tabs = JSON.parse(result.extractedContent) as unknown[]
+						return { tabCount: tabs.length }
+					} catch {
+						// Ignore parse errors
+					}
+				}
+				break
+			case 'markers':
+				if (result.data && Array.isArray(result.data)) {
+					return { markerCount: result.data.length }
+				}
+				break
+		}
+
+		return undefined
 	}
 }

@@ -1,8 +1,8 @@
 {
-  "mcpServers": {
-    "navigator": {
-      "command": "nav",
-      "args": ["mcp"]
-    }
-  }
+	"mcpServers": {
+		"navigator": {
+			"command": "nav",
+			"args": ["mcp"]
+		}
+	}
 }

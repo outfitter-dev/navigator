@@ -6,6 +6,7 @@
  */
 
 import { createHash } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -59,10 +60,42 @@ export function getNavigatorCacheDir(): string {
 
 /**
  * Get Navigator config directory.
- * ~/.config/navigator/
+ *
+ * Checks paths in priority order and returns the first existing directory:
+ * 1. $XDG_CONFIG_HOME/navigator/ (if XDG_CONFIG_HOME is set)
+ * 2. ~/.config/navigator/
+ * 3. ~/.navigator/ (simple fallback)
+ *
+ * If no directory exists, returns the XDG-compliant default path.
  */
 export function getNavigatorConfigDir(): string {
-	return join(getConfigHome(), 'navigator')
+	const home = homedir()
+	const candidates: string[] = []
+
+	// 1. XDG_CONFIG_HOME/navigator if explicitly set
+	if (process.env.XDG_CONFIG_HOME) {
+		candidates.push(join(process.env.XDG_CONFIG_HOME, 'navigator'))
+	}
+
+	// 2. ~/.config/navigator (default XDG location)
+	const defaultXdgPath = join(home, '.config', 'navigator')
+	// Avoid duplicate if XDG_CONFIG_HOME is ~/.config
+	if (!candidates.includes(defaultXdgPath)) {
+		candidates.push(defaultXdgPath)
+	}
+
+	// 3. ~/.navigator (simple fallback)
+	candidates.push(join(home, '.navigator'))
+
+	// Return first existing directory
+	for (const candidate of candidates) {
+		if (existsSync(candidate)) {
+			return candidate
+		}
+	}
+
+	// No existing dir found, return XDG-compliant default
+	return defaultXdgPath
 }
 
 // ============================================================================

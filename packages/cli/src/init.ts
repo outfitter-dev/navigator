@@ -1,16 +1,13 @@
 /**
  * Init command for installing the Navigator Claude Code plugin.
+ *
+ * Discovers and installs the shipped plugin from packages/agents/
+ * instead of generating files dynamically.
  */
 
-import {
-	chmodSync,
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	writeFileSync,
-} from 'node:fs'
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import select from '@inquirer/select'
 import ora from 'ora'
@@ -21,11 +18,7 @@ import { bold, cyan, dim, green } from 'yoctocolors'
 // ============================================================================
 
 const PLUGIN_NAME = 'navigator'
-const PLUGIN_DESCRIPTION = 'Browser automation for AI agents'
-const MARKETPLACE_NAME = 'navigator-cli'
-
-const AUTHOR_NAME = 'Matt Galligan'
-const AUTHOR_URL = 'https://github.com/galligan'
+const MARKETPLACE_NAME = 'navigator'
 
 // ============================================================================
 // Types
@@ -52,43 +45,6 @@ export interface RunInitOptions {
 // ============================================================================
 // Paths
 // ============================================================================
-
-function getPackageRoot(): string {
-	const packageJsonPath = fileURLToPath(
-		new URL('../package.json', import.meta.url),
-	)
-	return dirname(packageJsonPath)
-}
-
-function getVersion(): string {
-	try {
-		const packageJsonPath = fileURLToPath(
-			new URL('../package.json', import.meta.url),
-		)
-		const raw = readFileSync(packageJsonPath, 'utf8')
-		const parsed = JSON.parse(raw) as { version?: string }
-		if (parsed.version) {
-			return parsed.version
-		}
-	} catch {
-		// Fall back to default version
-	}
-	return '0.1.0'
-}
-
-function getDataDir(): string {
-	if (process.env.XDG_DATA_HOME) {
-		return join(process.env.XDG_DATA_HOME, 'navigator')
-	}
-	if (process.env.HOME) {
-		return join(process.env.HOME, '.local', 'share', 'navigator')
-	}
-	return join(homedir(), '.navigator')
-}
-
-function getPluginDir(): string {
-	return join(getDataDir(), 'plugin')
-}
 
 export function getClaudeConfigDir(): string {
 	const defaultPath = join(homedir(), '.claude')
@@ -121,211 +77,32 @@ export function detectClaudeConfig(
 	}
 }
 
-// ============================================================================
-// Plugin Files
-// ============================================================================
+/**
+ * Discovers the shipped plugin path by checking known locations
+ * relative to the CLI package.
+ *
+ * Checks:
+ * 1. Monorepo layout: packages/cli/src/ -> ../../../packages/agents/
+ * 2. Standalone layout: dist/ -> ../plugin/
+ *
+ * @returns Absolute path to the plugin directory, or null if not found
+ */
+function discoverPluginPath(): string | null {
+	const cliDir = dirname(fileURLToPath(import.meta.url))
 
-const pluginJson = (version: string): string => `{
-  "name": "${PLUGIN_NAME}",
-  "version": "${version}",
-  "description": "${PLUGIN_DESCRIPTION}",
-  "author": {
-    "name": "${AUTHOR_NAME}",
-    "url": "${AUTHOR_URL}"
-  },
-  "mcpServers": "../.mcp.json"
-}
-`
-
-const mcpJson = `{
-  "mcpServers": {
-    "navigator": {
-      "command": "nav",
-      "args": ["mcp"]
-    }
-  }
-}
-`
-
-const hooksJson = `{
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh",
-            "timeout": 30
-          }
-        ]
-      }
-    ]
-  }
-}
-`
-
-const sessionStartScript = `#!/bin/bash
-# navigator SessionStart hook
-# Optionally warms the navigator server if available.
-
-NAVIGATOR_SERVER_URL="\${NAVIGATOR_SERVER_URL:-http://localhost:9334}"
-
-if command -v curl >/dev/null 2>&1; then
-  curl -fsSL "\${NAVIGATOR_SERVER_URL}/health" >/dev/null 2>&1 || true
-fi
-
-exit 0
-`
-
-const AGENT_FILES: Record<string, string> = {
-	'commands/health.md': `---
-description: Check navigator server health and mode
-allowed-tools: Bash(curl *)
----
-
-# Navigator Health
-
-## Health endpoint
-!\`URL=\${NAVIGATOR_SERVER_URL:-http://localhost:9334}; curl -fsSL "\${URL}/health" 2>&1 || echo "Server not reachable at \${URL}"\`
-`,
-	'commands/session.md': `---
-description: Show current navigator session state
-allowed-tools: Bash(curl *)
----
-
-# Navigator Session
-
-## Session state
-!\`URL=\${NAVIGATOR_SERVER_URL:-http://localhost:9334}; curl -fsSL "\${URL}/session" 2>&1 || echo "Server not reachable at \${URL}"\`
-`,
-}
-
-function writeFileIfChanged(
-	filePath: string,
-	content: string,
-	mode?: number,
-): void {
-	if (existsSync(filePath)) {
-		const current = readFileSync(filePath, 'utf8')
-		if (current === content) {
-			if (mode !== undefined) {
-				chmodSync(filePath, mode)
-			}
-			return
-		}
-	} else {
-		mkdirSync(dirname(filePath), { recursive: true })
+	// Monorepo layout: packages/cli/src/ -> ../../agents/
+	const monorepoPath = resolve(cliDir, '..', '..', 'agents')
+	if (existsSync(join(monorepoPath, '.claude-plugin', 'marketplace.json'))) {
+		return monorepoPath
 	}
 
-	writeFileSync(filePath, content)
-	if (mode !== undefined) {
-		chmodSync(filePath, mode)
-	}
-}
-
-function resolveAgentContent(relPath: string, fallback: string): string {
-	const packageRoot = getPackageRoot()
-	const candidates = [
-		join(process.cwd(), 'packages', 'agents', relPath),
-		join(packageRoot, '..', 'agents', relPath),
-	]
-
-	for (const candidate of candidates) {
-		if (existsSync(candidate)) {
-			return readFileSync(candidate, 'utf8')
-		}
+	// Standalone layout: dist/ -> ../plugin/
+	const standalonePath = resolve(cliDir, '..', 'plugin')
+	if (existsSync(join(standalonePath, '.claude-plugin', 'marketplace.json'))) {
+		return standalonePath
 	}
 
-	return fallback
-}
-
-function ensureAgentFiles(pluginDir: string): void {
-	for (const [relPath, fallback] of Object.entries(AGENT_FILES)) {
-		const content = resolveAgentContent(relPath, fallback)
-		const targetPath = join(pluginDir, relPath)
-		writeFileIfChanged(targetPath, content)
-	}
-}
-
-function ensurePluginDir(version: string): void {
-	const pluginDir = getPluginDir()
-	const pluginMetaDir = join(pluginDir, '.claude-plugin')
-	const hooksDir = join(pluginDir, 'hooks')
-	const scriptsDir = join(pluginDir, 'scripts')
-
-	mkdirSync(pluginMetaDir, { recursive: true })
-	mkdirSync(hooksDir, { recursive: true })
-	mkdirSync(scriptsDir, { recursive: true })
-
-	writeFileIfChanged(join(pluginMetaDir, 'plugin.json'), pluginJson(version))
-	writeFileIfChanged(join(pluginDir, '.mcp.json'), mcpJson)
-	writeFileIfChanged(
-		join(hooksDir, 'hooks.json'),
-		resolveAgentContent('hooks/hooks.json', hooksJson),
-	)
-	writeFileIfChanged(
-		join(scriptsDir, 'session-start.sh'),
-		resolveAgentContent('scripts/session-start.sh', sessionStartScript),
-		0o755,
-	)
-
-	ensureAgentFiles(pluginDir)
-}
-
-function marketplaceJson(version: string): string {
-	return `{
-  "name": "${MARKETPLACE_NAME}",
-  "owner": {
-    "name": "${AUTHOR_NAME}",
-    "email": "noreply@navigator.local"
-  },
-  "plugins": [
-    {
-      "name": "${PLUGIN_NAME}",
-      "source": "./plugin",
-      "description": "${PLUGIN_DESCRIPTION}",
-      "version": "${version}",
-      "author": {
-        "name": "${AUTHOR_NAME}",
-        "url": "${AUTHOR_URL}"
-      }
-    }
-  ]
-}
-`
-}
-
-function ensureMarketplace(version: string): { root: string; name: string } {
-	const dataDir = getDataDir()
-	const marketplaceDir = join(dataDir, '.claude-plugin')
-	const marketplacePath = join(marketplaceDir, 'marketplace.json')
-	const desired = marketplaceJson(version)
-
-	mkdirSync(marketplaceDir, { recursive: true })
-
-	if (existsSync(marketplacePath)) {
-		try {
-			const existing = JSON.parse(readFileSync(marketplacePath, 'utf8')) as {
-				name?: string
-				plugins?: Array<{ name?: string; source?: string }>
-			}
-			const hasName = existing.name === MARKETPLACE_NAME
-			const plugin = Array.isArray(existing.plugins)
-				? existing.plugins.find((entry) => entry?.name === PLUGIN_NAME)
-				: undefined
-			const hasPlugin = Boolean(plugin)
-			const hasExpectedSource = plugin?.source === './plugin'
-			if (!(hasName && hasPlugin && hasExpectedSource)) {
-				writeFileSync(marketplacePath, desired)
-			}
-		} catch {
-			writeFileSync(marketplacePath, desired)
-		}
-	} else {
-		writeFileSync(marketplacePath, desired)
-	}
-
-	return { root: dataDir, name: MARKETPLACE_NAME }
+	return null
 }
 
 // ============================================================================
@@ -384,14 +161,14 @@ function isAlreadyInstalledError(result: SpawnResult): boolean {
 }
 
 function addMarketplace(
-	marketplace: { root: string },
+	pluginPath: string,
 	projectDir: string,
 	debug: boolean,
 	logDebug: (msg: string) => void,
 ): InstallResult | null {
-	logDebug(`Adding marketplace at ${marketplace.root}`)
+	logDebug(`Adding marketplace at ${pluginPath}`)
 	const result = runClaudeCommand(
-		['plugin', 'marketplace', 'add', marketplace.root],
+		['plugin', 'marketplace', 'add', pluginPath],
 		projectDir,
 	)
 
@@ -469,12 +246,19 @@ function installPlugin(
 	}
 
 	try {
-		const version = getVersion()
-		ensurePluginDir(version)
-		const marketplace = ensureMarketplace(version)
+		const pluginPath = discoverPluginPath()
+		if (!pluginPath) {
+			return {
+				success: false,
+				error:
+					'Could not find shipped plugin. Ensure the Navigator CLI is properly installed.',
+			}
+		}
+
+		logDebug(`Discovered plugin at: ${pluginPath}`)
 
 		const marketplaceError = addMarketplace(
-			marketplace,
+			pluginPath,
 			projectDir,
 			debug,
 			logDebug,
@@ -483,7 +267,7 @@ function installPlugin(
 			return marketplaceError
 		}
 
-		const pluginRef = `${PLUGIN_NAME}@${marketplace.name}`
+		const pluginRef = `${PLUGIN_NAME}@${MARKETPLACE_NAME}`
 		const pluginScope = scope === 'global' ? 'user' : 'project'
 		return installPluginFromMarketplace(
 			pluginRef,

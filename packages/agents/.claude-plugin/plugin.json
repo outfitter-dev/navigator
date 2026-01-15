@@ -1,17 +1,17 @@
 {
-  "name": "navigator",
-  "version": "1.0.0",
-  "description": "Browser automation for AI agents",
-  "author": {
-    "name": "Outfitter Team",
-    "email": "mg@outfitter.dev",
-    "url": "https://github.com/outfitter-dev"
-  },
-  "repository": "https://github.com/outfitter-dev/navigator",
-  "license": "MIT",
-  "agents": "./agents/",
-  "skills": "./skills/",
-  "commands": "./commands/",
-  "hooks": "./hooks/",
-  "mcpServers": "./.mcp.json"
+	"name": "navigator",
+	"version": "1.0.0",
+	"description": "Browser automation for AI agents",
+	"author": {
+		"name": "Outfitter Team",
+		"email": "mg@outfitter.dev",
+		"url": "https://github.com/outfitter-dev"
+	},
+	"repository": "https://github.com/outfitter-dev/navigator",
+	"license": "MIT",
+	"agents": "./agents/",
+	"skills": "./skills/",
+	"commands": "./commands/",
+	"hooks": "./hooks/",
+	"mcpServers": "./.mcp.json"
 }

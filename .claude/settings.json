@@ -1,15 +1,15 @@
 {
-  "extraKnownMarketplaces": {
-    "outfitter": {
-      "source": { "source": "github", "repo": "outfitter-dev/agents" }
-    },
-    "navigator": {
-      "source": { "source": "directory", "path": "./packages/agents" }
-    }
-  },
-  "enabledPlugins": {
-    "agent-kit@outfitter": true,
-    "baselayer@outfitter": true,
-    "navigator@navigator": true
-  }
+	"extraKnownMarketplaces": {
+		"outfitter": {
+			"source": { "source": "github", "repo": "outfitter-dev/agents" }
+		},
+		"navigator": {
+			"source": { "source": "directory", "path": "./packages/agents" }
+		}
+	},
+	"enabledPlugins": {
+		"agent-kit@outfitter": true,
+		"baselayer@outfitter": true,
+		"navigator@navigator": true
+	}
 }

@@ -20,6 +20,7 @@ import {
 	hashUrl,
 } from '@outfitter/navigator-core'
 import type { ServerWebSocket } from 'bun'
+import { type WatchEvent, watchBroadcaster } from '../watch'
 
 // ============================================================================
 // Types
@@ -29,11 +30,32 @@ type PairedMessage =
 	| { type: 'hello'; client: 'extension'; version?: string }
 	| {
 			type: 'tabs'
-			tabs: Array<{ id: number; url: string; title: string; active: boolean }>
+			tabs: Array<{
+				id: number
+				url: string
+				title: string
+				active: boolean
+				viewport?: Viewport
+			}>
 	  }
 	| { type: 'actionResult'; id: string; result: ActionResult }
 	| { type: 'captureResult'; id: string; result: PairedCaptureResult }
 	| { type: 'pong' }
+	| {
+			type: 'viewportUpdate'
+			tabId: number
+			viewport: Viewport
+			url: string
+			title: string
+	  }
+	| {
+			type: 'userAction'
+			tabId: number
+			action: string
+			target?: string
+			url?: string
+			timestamp: string
+	  }
 
 interface PairedCaptureResult {
 	success: boolean
@@ -57,6 +79,7 @@ export interface PairedSessionState {
 	connected: boolean
 	tabCount: number
 	activeTab: number | null
+	viewport: Viewport | null
 }
 
 type PairedSocket = ServerWebSocket<unknown>
@@ -131,6 +154,18 @@ export class PairedManager {
 				}
 				return
 			}
+			case 'viewportUpdate':
+				this.handleViewportUpdate(payload.tabId, payload.viewport)
+				return
+			case 'userAction':
+				this.handleUserAction(
+					payload.tabId,
+					payload.action,
+					payload.target,
+					payload.url,
+					payload.timestamp,
+				)
+				return
 			case 'pong':
 				return
 			default:
@@ -161,10 +196,16 @@ export class PairedManager {
 	 * Return paired session state for /session reporting.
 	 */
 	getSessionState(): PairedSessionState {
+		const activeViewport =
+			this.activeRef !== null
+				? (this.tabsByRef.get(this.activeRef)?.viewport ?? null)
+				: null
+
 		return {
 			connected: this.isConnected(),
 			tabCount: this.tabsByRef.size,
 			activeTab: this.activeRef,
+			viewport: activeViewport,
 		}
 	}
 
@@ -274,7 +315,13 @@ export class PairedManager {
 	}
 
 	private updateTabs(
-		tabs: Array<{ id: number; url: string; title: string; active: boolean }>,
+		tabs: Array<{
+			id: number
+			url: string
+			title: string
+			active: boolean
+			viewport?: Viewport
+		}>,
 	): void {
 		const defaultViewport: Viewport = { width: 1280, height: 720 }
 		const previousByTabId = new Map<
@@ -292,12 +339,14 @@ export class PairedManager {
 		tabs.forEach((tab, index) => {
 			const ref = index
 			const previous = previousByTabId.get(tab.id)
+			// Use viewport from message if provided, else preserve previous, else default
+			const viewport = tab.viewport ?? previous?.viewport ?? defaultViewport
 			const info: TabInfo & { tabId: number; active: boolean } = {
 				ref,
 				url: tab.url,
 				urlHash: hashUrl(tab.url),
 				title: tab.title,
-				viewport: previous?.viewport ?? defaultViewport,
+				viewport,
 				colorScheme: previous?.colorScheme ?? 'no-preference',
 				tabId: tab.id,
 				active: tab.active,
@@ -390,5 +439,40 @@ export class PairedManager {
 
 	private createRequestId(): string {
 		return `req_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+	}
+
+	/**
+	 * Handle viewport update from extension.
+	 */
+	private handleViewportUpdate(tabId: number, viewport: Viewport): void {
+		// Find the tab ref for this tabId
+		for (const [ref, info] of this.tabsByRef) {
+			if (info.tabId === tabId) {
+				this.tabsByRef.set(ref, { ...info, viewport })
+				return
+			}
+		}
+	}
+
+	/**
+	 * Handle user action event from extension.
+	 * Broadcasts to watch clients with source='user'.
+	 */
+	private handleUserAction(
+		_tabId: number,
+		action: string,
+		target?: string,
+		url?: string,
+		timestamp?: string,
+	): void {
+		const event: WatchEvent = {
+			ts: timestamp ?? new Date().toISOString(),
+			type: 'action',
+			source: 'user',
+			action,
+			target: target ?? url,
+			status: 'success',
+		}
+		watchBroadcaster.broadcast(event)
 	}
 }

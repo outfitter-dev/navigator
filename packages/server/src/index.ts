@@ -20,6 +20,7 @@ import { ActionExecutor } from './actions/executor'
 import { BrowserManager } from './browser/manager'
 import { PairedManager } from './paired/manager'
 import { SessionManager } from './session/manager'
+import { watchBroadcaster } from './watch'
 
 // ============================================================================
 // Application State
@@ -34,6 +35,7 @@ interface AppState {
 
 interface WebSocketData {
 	state: AppState
+	type: 'paired' | 'watch'
 }
 
 let state: AppState | null = null
@@ -134,24 +136,55 @@ const server = Bun.serve<WebSocketData>({
 	hostname: host,
 	fetch: (request, serverInstance) => {
 		const url = new URL(request.url)
+
+		// WebSocket upgrade for paired extension
 		if (url.pathname === '/ws') {
 			const appState = initializeState()
-			if (serverInstance.upgrade(request, { data: { state: appState } })) {
+			if (
+				serverInstance.upgrade(request, {
+					data: { state: appState, type: 'paired' as const },
+				})
+			) {
 				return
 			}
 			return new Response('Upgrade failed', { status: 400 })
 		}
+
+		// WebSocket upgrade for watch clients
+		if (url.pathname === '/ws/watch') {
+			const appState = initializeState()
+			if (
+				serverInstance.upgrade(request, {
+					data: { state: appState, type: 'watch' as const },
+				})
+			) {
+				return
+			}
+			return new Response('Upgrade failed', { status: 400 })
+		}
+
 		return app.fetch(request)
 	},
 	websocket: {
 		open: (ws) => {
-			ws.data.state.pairedManager.handleOpen(ws)
+			if (ws.data.type === 'watch') {
+				watchBroadcaster.addClient(ws)
+			} else {
+				ws.data.state.pairedManager.handleOpen(ws)
+			}
 		},
 		message: (ws, message) => {
-			ws.data.state.pairedManager.handleMessage(ws, message)
+			if (ws.data.type === 'paired') {
+				ws.data.state.pairedManager.handleMessage(ws, message)
+			}
+			// Watch clients don't send messages, they only receive
 		},
 		close: (ws) => {
-			ws.data.state.pairedManager.handleClose(ws)
+			if (ws.data.type === 'watch') {
+				watchBroadcaster.removeClient(ws)
+			} else {
+				ws.data.state.pairedManager.handleClose(ws)
+			}
 		},
 	},
 })

@@ -38,42 +38,57 @@ export function formatMarkersAsMarkdown(markers: Marker[]): string {
 	for (const marker of markers) {
 		const geoStr = formatGeometry(marker.geometry)
 
-		// Header with note or geometry
-		if (marker.note) {
-			lines.push(`## ${marker.note}`)
-			lines.push(`- Geometry: ${geoStr}`)
-		} else {
-			lines.push(`## ${geoStr}`)
-		}
-
-		// Page info
-		lines.push(`- Page: ${marker.title}`)
-		lines.push(`- URL: ${marker.url}`)
-
-		// Element info if available
-		if (marker.selector) {
-			lines.push(`- Selector: \`${marker.selector}\``)
-		}
-
-		if (marker.element) {
-			const el = marker.element
-			let elementDesc = `<${el.tagName}`
-			if (el.id) elementDesc += ` id="${el.id}"`
-			if (el.className) elementDesc += ` class="${el.className}"`
-			elementDesc += '>'
-			lines.push(`- Element: \`${elementDesc}\``)
-
-			if (el.text) {
-				lines.push(
-					`- Text: "${el.text.slice(0, 50)}${el.text.length > 50 ? '...' : ''}"`,
-				)
-			}
-		}
+		appendMarkerHeader(lines, marker, geoStr)
+		appendMarkerPageInfo(lines, marker)
+		appendMarkerElementInfo(lines, marker)
 
 		lines.push('')
 	}
 
 	return lines.join('\n')
+}
+
+function appendMarkerHeader(
+	lines: string[],
+	marker: Marker,
+	geometry: string,
+): void {
+	if (marker.note) {
+		lines.push(`## ${marker.note}`)
+		lines.push(`- Geometry: ${geometry}`)
+		return
+	}
+	lines.push(`## ${geometry}`)
+}
+
+function appendMarkerPageInfo(lines: string[], marker: Marker): void {
+	lines.push(`- Page: ${marker.title}`)
+	lines.push(`- URL: ${marker.url}`)
+}
+
+function formatElementDescriptor(element: Marker['element']): string {
+	if (!element) return ''
+	let elementDesc = `<${element.tagName}`
+	if (element.id) elementDesc += ` id="${element.id}"`
+	if (element.className) elementDesc += ` class="${element.className}"`
+	return `${elementDesc}>`
+}
+
+function formatElementText(text: string): string {
+	return `${text.slice(0, 50)}${text.length > 50 ? '...' : ''}`
+}
+
+function appendMarkerElementInfo(lines: string[], marker: Marker): void {
+	if (marker.selector) {
+		lines.push(`- Selector: \`${marker.selector}\``)
+	}
+
+	if (!marker.element) return
+
+	lines.push(`- Element: \`${formatElementDescriptor(marker.element)}\``)
+	if (marker.element.text) {
+		lines.push(`- Text: "${formatElementText(marker.element.text)}"`)
+	}
 }
 
 /**
