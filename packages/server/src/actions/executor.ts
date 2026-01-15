@@ -51,6 +51,7 @@ const NUMERIC_STRING_PATTERN = /^\d+$/
 export class ActionExecutor {
 	private markerStore: MarkerStore | null = null
 	private stepLogger: StepLogger | null = null
+	private currentProjectRoot: string | null = null
 
 	constructor(
 		private readonly browserManager: BrowserManager,
@@ -61,21 +62,27 @@ export class ActionExecutor {
 
 	/**
 	 * Execute a Navigator action.
+	 *
+	 * @param action - The action to execute
+	 * @param projectRoot - Optional project root override from request header
 	 */
-	async execute(action: Action): Promise<ActionResult> {
+	async execute(action: Action, projectRoot?: string): Promise<ActionResult> {
+		// Use provided project root or fall back to session manager's default
+		const effectiveProjectRoot =
+			projectRoot ?? this.sessionManager.getProjectRoot()
+
 		// Ensure session exists
 		const session = await this.sessionManager.getOrCreateSession()
 
-		// Initialize stores for this session
-		if (!this.markerStore || !this.stepLogger) {
-			this.markerStore = new MarkerStore(
-				this.sessionManager.getProjectRoot(),
-				session.id,
-			)
-			this.stepLogger = new StepLogger(
-				this.sessionManager.getProjectRoot(),
-				session.id,
-			)
+		// Reinitialize stores if project root changed or not yet initialized
+		if (
+			!this.markerStore ||
+			!this.stepLogger ||
+			this.currentProjectRoot !== effectiveProjectRoot
+		) {
+			this.currentProjectRoot = effectiveProjectRoot
+			this.markerStore = new MarkerStore(effectiveProjectRoot, session.id)
+			this.stepLogger = new StepLogger(effectiveProjectRoot, session.id)
 		}
 
 		const start = Date.now()

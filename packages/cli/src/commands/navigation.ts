@@ -17,11 +17,12 @@ export function registerNavigationCommands(
 		.description('Navigate to URL')
 		.action(async (url: string) => {
 			const client = getClient()
-			const result = await client.execute<{ url: string }>({
+			await client.execute({
 				action: 'navigate',
 				url,
 			})
-			console.log('Navigated to:', result.url)
+			// Server returns { success: true } without URL, use input URL
+			console.log('Navigated to:', url)
 		})
 
 	// nav back

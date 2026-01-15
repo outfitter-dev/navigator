@@ -8,7 +8,7 @@ import type { Command } from 'commander'
 import type { NavigatorClient } from '../client.js'
 
 interface TabInfo {
-	id: string | number
+	ref: string | number
 	url: string
 	title?: string
 	active?: boolean
@@ -24,11 +24,20 @@ export function registerTabCommands(
 		.description('List open tabs')
 		.action(async () => {
 			const client = getClient()
-			const result = await client.execute<{ tabs: TabInfo[] }>({
+			const result = await client.execute<{ extractedContent?: string }>({
 				action: 'tabs',
 			})
 
-			const tabs = result.tabs ?? []
+			// Server returns tabs as JSON in extractedContent
+			let tabs: TabInfo[] = []
+			if (result.extractedContent) {
+				try {
+					tabs = JSON.parse(result.extractedContent) as TabInfo[]
+				} catch {
+					// Ignore parse errors
+				}
+			}
+
 			if (tabs.length === 0) {
 				console.log('No tabs open')
 				return
@@ -38,7 +47,7 @@ export function registerTabCommands(
 			for (const tab of tabs) {
 				const active = tab.active ? ' *' : ''
 				const title = tab.title ? ` - ${tab.title}` : ''
-				console.log(`  [${tab.id}]${active} ${tab.url}${title}`)
+				console.log(`  [${tab.ref}]${active} ${tab.url}${title}`)
 			}
 		})
 
@@ -66,12 +75,13 @@ export function registerTabCommands(
 		.description('Open new tab')
 		.action(async (url?: string) => {
 			const client = getClient()
-			const result = await client.execute<{ tab: TabInfo }>({
+			const result = await client.execute<{ extractedContent?: string }>({
 				action: 'newTab',
 				url,
 			})
 
-			console.log('Opened new tab:', result.tab?.id ?? 'unknown')
+			// Server returns a message like "Created tab 0 at URL" in extractedContent
+			console.log(result.extractedContent ?? 'Opened new tab')
 		})
 
 	// nav close-tab <id>

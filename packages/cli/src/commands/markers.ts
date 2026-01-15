@@ -84,13 +84,14 @@ export function registerMarkerCommands(
 					}
 				: { type: 'point' as const, x, y }
 
-			const result = await client.execute<{ marker: Marker }>({
+			const result = await client.execute<{ data?: Marker }>({
 				action: 'marker',
 				geometry,
 				note: options.note,
 			})
 
-			console.log('Created marker:', result.marker?.id ?? 'unknown')
+			// Server returns marker in data field
+			console.log('Created marker:', result.data?.id ?? 'unknown')
 		})
 
 	// nav markers
@@ -100,17 +101,20 @@ export function registerMarkerCommands(
 		.option('--md', 'Output as markdown')
 		.action(async (options) => {
 			const client = getClient()
-			const result = await client.execute<{ markers: Marker[] }>({
+			const result = await client.execute<{
+				data?: Marker[]
+				extractedContent?: string
+			}>({
 				action: 'markers',
 				format: options.md ? 'markdown' : 'json',
 			})
 
 			if (options.md) {
-				// If server returns markdown, print it
-				console.log(result)
+				// Server returns markdown in extractedContent
+				console.log(result.extractedContent ?? 'No markers')
 			} else {
-				// Format as table
-				printMarkersTable(result.markers ?? [])
+				// Server returns markers in data field
+				printMarkersTable(result.data ?? [])
 			}
 		})
 
@@ -120,12 +124,13 @@ export function registerMarkerCommands(
 		.description('Get marker details')
 		.action(async (id: string) => {
 			const client = getClient()
-			const result = await client.execute<{ marker: Marker }>({
+			const result = await client.execute<{ data?: Marker }>({
 				action: 'markerGet',
 				id,
 			})
 
-			console.log(JSON.stringify(result.marker, null, 2))
+			// Server returns marker in data field
+			console.log(JSON.stringify(result.data, null, 2))
 		})
 
 	// nav marker-compare <id1> <id2>

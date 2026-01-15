@@ -90,7 +90,11 @@ app.post('/action', async (c) => {
 	try {
 		const body = await c.req.json()
 		const action = ActionSchema.parse(body) as Action
-		const result = await appState.actionExecutor.execute(action)
+
+		// Read project path from header (sent by CLI)
+		const projectPath = c.req.header('X-Project-Path')
+
+		const result = await appState.actionExecutor.execute(action, projectPath)
 		return c.json(result)
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error)
