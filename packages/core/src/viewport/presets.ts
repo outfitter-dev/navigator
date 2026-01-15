@@ -29,12 +29,12 @@ import type {
  * | 2xl  | 1536  |
  */
 export const TAILWIND_BREAKPOINTS: Record<TailwindBreakpoint, number> = {
-	xs: 0,
-	sm: 0,
-	md: 0,
-	lg: 0,
-	xl: 0,
-	'2xl': 0,
+	xs: 375,
+	sm: 640,
+	md: 768,
+	lg: 1024,
+	xl: 1280,
+	'2xl': 1536,
 }
 
 // ============================================================================
@@ -53,7 +53,81 @@ export const TAILWIND_BREAKPOINTS: Record<TailwindBreakpoint, number> = {
  * | laptop    | 1280   | 800    | landscape   | xl       |
  * | desktop   | 1536   | 864    | landscape   | 2xl      |
  */
-export const VIEWPORT_PRESETS: Record<string, ViewportPreset> = {}
+export const VIEWPORT_PRESETS: Record<string, ViewportPreset> = {
+	mobile: {
+		name: 'mobile',
+		width: 375,
+		height: 812,
+		orientation: 'portrait',
+		tailwind: 'xs',
+	},
+	'mobile-xl': {
+		name: 'mobile-xl',
+		width: 430,
+		height: 932,
+		orientation: 'portrait',
+	},
+	tablet: {
+		name: 'tablet',
+		width: 768,
+		height: 1024,
+		orientation: 'portrait',
+		tailwind: 'md',
+	},
+	slate: {
+		name: 'slate',
+		width: 1024,
+		height: 1366,
+		orientation: 'portrait',
+		tailwind: 'lg',
+	},
+	laptop: {
+		name: 'laptop',
+		width: 1280,
+		height: 800,
+		orientation: 'landscape',
+		tailwind: 'xl',
+	},
+	desktop: {
+		name: 'desktop',
+		width: 1536,
+		height: 864,
+		orientation: 'landscape',
+		tailwind: '2xl',
+	},
+}
+
+// ============================================================================
+// Breakpoint Heights
+// ============================================================================
+
+/**
+ * Default heights for Tailwind breakpoints based on typical aspect ratios
+ *
+ * xs, md use portrait orientation (9:16-ish)
+ * sm, lg, xl, 2xl use landscape orientation (16:10-ish)
+ */
+const BREAKPOINT_HEIGHTS: Record<TailwindBreakpoint, number> = {
+	xs: 812,
+	sm: 480,
+	md: 1024,
+	lg: 640,
+	xl: 800,
+	'2xl': 864,
+}
+
+/**
+ * Default orientation for each breakpoint
+ */
+const BREAKPOINT_ORIENTATIONS: Record<TailwindBreakpoint, ViewportOrientation> =
+	{
+		xs: 'portrait',
+		sm: 'landscape',
+		md: 'portrait',
+		lg: 'landscape',
+		xl: 'landscape',
+		'2xl': 'landscape',
+	}
 
 // ============================================================================
 // Helper Functions
@@ -84,5 +158,28 @@ export function getViewportDimensions(
 	name: string,
 	orientation?: ViewportOrientation,
 ): { width: number; height: number } {
-	throw new Error('Not implemented')
+	// Check presets first
+	const preset = VIEWPORT_PRESETS[name]
+	if (preset) {
+		let { width, height } = preset
+		// If orientation specified and differs from default, flip
+		if (orientation && orientation !== preset.orientation) {
+			;[width, height] = [height, width]
+		}
+		return { width, height }
+	}
+
+	// Check breakpoints
+	if (name in TAILWIND_BREAKPOINTS) {
+		const bp = name as TailwindBreakpoint
+		let width = TAILWIND_BREAKPOINTS[bp]
+		let height = BREAKPOINT_HEIGHTS[bp]
+		const defaultOrientation = BREAKPOINT_ORIENTATIONS[bp]
+		if (orientation && orientation !== defaultOrientation) {
+			;[width, height] = [height, width]
+		}
+		return { width, height }
+	}
+
+	throw new Error(`Unknown viewport: ${name}`)
 }
