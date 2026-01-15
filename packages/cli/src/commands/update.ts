@@ -105,8 +105,10 @@ function isDevelopmentInstall(): boolean {
  */
 function getCurrentVersion(): string {
 	try {
+		// From packages/cli/src/ go up two levels to packages/cli/package.json
 		const packageJsonPath = join(
 			dirname(fileURLToPath(import.meta.url)),
+			'..',
 			'..',
 			'package.json',
 		)

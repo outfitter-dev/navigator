@@ -88,13 +88,19 @@ async function promptConfirm(message: string): Promise<boolean> {
 	})
 
 	return new Promise((resolve) => {
+		let finished = false
+
 		rl.question(message, (answer) => {
+			if (finished) return
+			finished = true
 			rl.close()
 			const normalized = answer.toLowerCase().trim()
 			resolve(normalized === 'y' || normalized === 'yes')
 		})
 
 		rl.on('close', () => {
+			if (finished) return
+			finished = true
 			resolve(false)
 		})
 	})
@@ -290,7 +296,10 @@ function tryUninstallScopes(pluginStatus: PluginStatus): {
 		firstError = firstError ?? projectResult.error
 	}
 
-	return { success: anySuccess, error: anySuccess ? undefined : firstError }
+	if (anySuccess) {
+		return { success: true }
+	}
+	return firstError ? { success: false, error: firstError } : { success: false }
 }
 
 function uninstallClaudePlugin(
@@ -393,9 +402,10 @@ async function runUninstall(options: UninstallOptions): Promise<void> {
 	const hasAnything =
 		pluginStatus.global ||
 		pluginStatus.project ||
+		hasClaude ||
 		(!keepData && (dataInfo.exists || configInfo.exists))
 
-	if (!hasAnything && hasClaude) {
+	if (!hasAnything) {
 		console.log('Nothing to uninstall.')
 		console.log()
 		return

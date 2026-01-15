@@ -179,10 +179,29 @@ async function watchSession(
 	let reconnectAttempts = 0
 	const maxReconnectAttempts = 5
 	const reconnectDelay = 1000
+	let currentWs: WebSocket | null = null
+	let resolveMain: (() => void) | null = null
+
+	// Register signal handlers once, outside connect()
+	const cleanup = () => {
+		if (currentWs) {
+			currentWs.close()
+		}
+		if (resolveMain) {
+			resolveMain()
+		}
+		process.off('SIGINT', cleanup)
+		process.off('SIGTERM', cleanup)
+	}
+
+	process.on('SIGINT', cleanup)
+	process.on('SIGTERM', cleanup)
 
 	function connect(): Promise<void> {
 		return new Promise((resolve, reject) => {
+			resolveMain = resolve
 			const ws = new WebSocket(wsUrl)
+			currentWs = ws
 
 			ws.onopen = () => {
 				reconnectAttempts = 0
@@ -227,6 +246,7 @@ async function watchSession(
 			}
 
 			ws.onclose = () => {
+				currentWs = null
 				if (reconnectAttempts < maxReconnectAttempts) {
 					reconnectAttempts++
 					if (!options.quiet && !options.json) {
@@ -241,15 +261,6 @@ async function watchSession(
 					reject(new Error('Max reconnection attempts reached'))
 				}
 			}
-
-			// Handle Ctrl+C gracefully
-			const cleanup = () => {
-				ws.close()
-				resolve()
-			}
-
-			process.on('SIGINT', cleanup)
-			process.on('SIGTERM', cleanup)
 		})
 	}
 

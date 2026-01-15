@@ -21,14 +21,21 @@ interface HealthResponse {
 interface SessionResponse {
 	session?: {
 		id: string
-		stepCount?: number
 	}
-	tabs?: Array<{
-		id: string
-		active?: boolean
-	}>
-	extension?: {
+	browser?: {
+		mode: 'headless' | 'windowed' | 'paired'
+		tabCount: number
+		activeTab: number | null
+		snapshotVersion: number
+	}
+	paired?: {
 		connected: boolean
+		tabCount: number
+		activeTab: number | null
+		viewport: {
+			width: number
+			height: number
+		} | null
 	}
 }
 
@@ -45,6 +52,7 @@ export function registerStatusCommand(
 		.description('Show Navigator runtime status')
 		.action(async () => {
 			const client = getClient()
+			let serverMode: HealthResponse['mode']
 
 			console.log('Navigator Status')
 
@@ -61,6 +69,7 @@ export function registerStatusCommand(
 				console.log(`  Server: running on :${port}`)
 
 				if (health.mode) {
+					serverMode = health.mode
 					console.log(`  Mode: ${health.mode}`)
 				}
 			} catch (err) {
@@ -90,24 +99,28 @@ export function registerStatusCommand(
 					const data = (await sessionResponse.json()) as SessionResponse
 
 					if (data.session) {
-						const stepInfo =
-							data.session.stepCount !== undefined
-								? ` (${data.session.stepCount} steps)`
-								: ''
-						console.log(`  Session: ${data.session.id.slice(0, 8)}${stepInfo}`)
+						console.log(`  Session: ${data.session.id.slice(0, 8)}`)
 					} else {
 						console.log('  Session: none')
 					}
 
-					if (data.tabs && data.tabs.length > 0) {
-						const activeTab = data.tabs.find((t) => t.active)
-						const activeInfo = activeTab ? ` (${activeTab.id} active)` : ''
-						console.log(`  Tabs: ${data.tabs.length} open${activeInfo}`)
+					const mode = data.browser?.mode ?? serverMode
+					const tabCount =
+						mode === 'paired' ? data.paired?.tabCount : data.browser?.tabCount
+					const activeTab =
+						mode === 'paired' ? data.paired?.activeTab : data.browser?.activeTab
+
+					if (tabCount !== undefined) {
+						const activeInfo =
+							activeTab !== null && activeTab !== undefined
+								? ` (active ${activeTab})`
+								: ''
+						console.log(`  Tabs: ${tabCount} open${activeInfo}`)
 					}
 
-					if (data.extension) {
+					if (data.paired) {
 						console.log(
-							`  Extension: ${data.extension.connected ? 'connected' : 'disconnected'}`,
+							`  Extension: ${data.paired.connected ? 'connected' : 'disconnected'}`,
 						)
 					}
 				}

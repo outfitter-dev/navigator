@@ -7,12 +7,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Colors (disable when not a TTY)
+if [[ -t 1 ]]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[0;33m'
+  BLUE='\033[0;34m'
+  NC='\033[0m'
+else
+  RED=''
+  GREEN=''
+  YELLOW=''
+  BLUE=''
+  NC=''
+fi
 
 info() { echo -e "${BLUE}==>${NC} $1"; }
 success() { echo -e "${GREEN}==>${NC} $1"; }
@@ -60,7 +68,10 @@ link_cli() {
 
   if command -v nav &> /dev/null; then
     success "CLI linked: nav and nav-dev available"
-    echo "  nav --version: $(nav --version)"
+    # Safely get version without aborting on error
+    local version
+    version=$(nav --version 2>/dev/null || echo "unknown")
+    echo "  nav --version: $version"
   else
     warn "CLI linked but not in PATH. Add ~/.bun/bin to your PATH:"
     echo "  export PATH=\"\$HOME/.bun/bin:\$PATH\""

@@ -429,7 +429,11 @@ async function notifyContentScripts(
 // Tab change listeners - keep server informed
 chrome.tabs.onActivated.addListener(() => sendTabs())
 chrome.tabs.onCreated.addListener(() => sendTabs())
-chrome.tabs.onRemoved.addListener(() => sendTabs())
+chrome.tabs.onRemoved.addListener((tabId) => {
+	// Clean up viewport data for closed tabs to prevent memory leak
+	tabViewports.delete(tabId)
+	sendTabs()
+})
 chrome.tabs.onUpdated.addListener(() => sendTabs())
 
 // Reconnect when storage changes (server URL updated)

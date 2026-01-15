@@ -136,6 +136,7 @@ function sendUserActionEvent(event: UserActionEvent): void {
  * Handle user click events
  */
 function handleUserClick(event: MouseEvent): void {
+	if (!event.isTrusted) return
 	// Ignore clicks on our overlay elements
 	const target = event.target as HTMLElement
 	if (target?.hasAttribute?.('data-navigator-overlay')) return
@@ -154,6 +155,7 @@ function handleUserClick(event: MouseEvent): void {
  * Handle user input events (typing)
  */
 function handleUserInput(event: Event): void {
+	if (!event.isTrusted) return
 	const target = event.target as HTMLElement
 	if (!target) return
 
@@ -170,7 +172,8 @@ function handleUserInput(event: Event): void {
  * Handle user scroll events with debounce
  */
 let scrollTimeout: ReturnType<typeof setTimeout> | null = null
-function handleUserScroll(): void {
+function handleUserScroll(event: Event): void {
+	if (!event.isTrusted) return
 	if (scrollTimeout) return
 	scrollTimeout = setTimeout(() => {
 		sendUserActionEvent({

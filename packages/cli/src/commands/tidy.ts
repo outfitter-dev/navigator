@@ -43,7 +43,11 @@ async function promptConfirm(message: string): Promise<boolean> {
 	})
 
 	return new Promise((resolve) => {
+		let finished = false
+
 		rl.question(message, (answer) => {
+			if (finished) return
+			finished = true
 			rl.close()
 			const normalized = answer.toLowerCase().trim()
 			resolve(normalized === 'y' || normalized === 'yes')
@@ -51,6 +55,8 @@ async function promptConfirm(message: string): Promise<boolean> {
 
 		// Handle Ctrl+C
 		rl.on('close', () => {
+			if (finished) return
+			finished = true
 			resolve(false)
 		})
 	})
