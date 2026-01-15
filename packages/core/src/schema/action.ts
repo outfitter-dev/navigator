@@ -216,6 +216,7 @@ const screenshotAction = z.object({
 	selector: z.string().optional(),
 	fullPage: z.boolean().optional(),
 	quality: z.number().optional(),
+	view: z.string().optional(),
 })
 
 // 'snap' instead of 'snapshot'
@@ -228,6 +229,7 @@ const snapAction = z.object({
 	depth: z.number().optional(),
 	selector: z.string().optional(),
 	visibleOnly: z.boolean().optional(),
+	view: z.string().optional(),
 })
 
 const htmlAction = z.object({
@@ -429,6 +431,7 @@ export type CheckAction = z.infer<typeof checkAction>
 export type UncheckAction = z.infer<typeof uncheckAction>
 export type UploadAction = z.infer<typeof uploadAction>
 export type DialogAction = z.infer<typeof dialogAction>
+export type ScreenshotAction = z.infer<typeof screenshotAction>
 
 // Browser mode type (uses 'paired' instead of 'guided')
 export type BrowserMode = 'headless' | 'windowed' | 'paired'

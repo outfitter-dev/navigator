@@ -17,7 +17,7 @@ import type {
 	TabRef,
 	Viewport,
 } from '@outfitter/navigator-core'
-import { parseKeyCombo } from '@outfitter/navigator-core'
+import { parseKeyCombo, resolveViewFlag } from '@outfitter/navigator-core'
 import type { BrowserManager } from '../browser/manager'
 import { MarkerStore, markersToMarkdown } from '../markers'
 import type { PairedManager } from '../paired/manager'
@@ -245,6 +245,9 @@ export class ActionExecutor {
 
 			// Capture
 			case 'screenshot':
+				if (action.view) {
+					return this.screenshotMultiViewport(action)
+				}
 				return this.screenshot(
 					action.tab,
 					action.ref,
@@ -253,6 +256,9 @@ export class ActionExecutor {
 					action.quality,
 				)
 			case 'snap':
+				if (action.view) {
+					return this.snapMultiViewport(action)
+				}
 				return this.snap(action.tab, action.mode, action)
 			case 'html':
 				return this.getHtml(action.tab, action.ref, action.selector)
@@ -1094,6 +1100,228 @@ export class ActionExecutor {
 				mode: mode ?? 'full',
 				interactiveCount: Object.keys(refs).length,
 			},
+		}
+	}
+
+	/**
+	 * Get the current viewport dimensions.
+	 */
+	private async getCurrentViewport(
+		tab?: TabRef,
+	): Promise<{ width: number; height: number } | null> {
+		const response = await this.withTab(tab, async () =>
+			this.browserManager.send<{ width: number; height: number }>({
+				action: 'evaluate',
+				script:
+					'() => ({ width: window.innerWidth, height: window.innerHeight })',
+			}),
+		)
+
+		if (response.success && response.data) {
+			// Handle evaluate result which wraps in { result: ... }
+			const data = response.data as unknown as {
+				result?: { width: number; height: number }
+			}
+			if (data.result) {
+				return data.result
+			}
+		}
+		return null
+	}
+
+	/**
+	 * Set viewport and return success status.
+	 */
+	private async setViewportDimensions(
+		tab: TabRef | undefined,
+		width: number,
+		height: number,
+	): Promise<boolean> {
+		const response = await this.withTab(tab, async () =>
+			this.browserManager.send({
+				action: 'viewport',
+				width,
+				height,
+			}),
+		)
+		return response.success
+	}
+
+	/**
+	 * Screenshot at multiple viewports.
+	 */
+	private async screenshotMultiViewport(action: {
+		tab?: TabRef | undefined
+		ref?: string | undefined
+		selector?: string | undefined
+		fullPage?: boolean | undefined
+		quality?: number | undefined
+		view?: string | undefined
+	}): Promise<ActionResult> {
+		if (!action.view) {
+			return { success: false, error: 'view parameter is required' }
+		}
+		const viewports = resolveViewFlag(action.view)
+		const screenshots: Array<{ viewport: string; data: string }> = []
+
+		// Save original viewport
+		const originalViewport = await this.getCurrentViewport(action.tab)
+
+		try {
+			for (const vp of viewports) {
+				// Set viewport
+				const success = await this.setViewportDimensions(
+					action.tab,
+					vp.width,
+					vp.height,
+				)
+				if (!success) {
+					return {
+						success: false,
+						error: `Failed to set viewport to ${vp.width}x${vp.height}`,
+					}
+				}
+
+				// Small delay to let layout settle
+				await new Promise((resolve) => setTimeout(resolve, 100))
+
+				// Capture screenshot at this viewport
+				const result = await this.screenshot(
+					action.tab,
+					action.ref,
+					action.selector,
+					action.fullPage,
+					action.quality,
+				)
+
+				if (!result.success || !result.screenshot) {
+					return {
+						success: false,
+						error:
+							result.error ??
+							`Screenshot failed at viewport ${vp.name ?? `${vp.width}x${vp.height}`}`,
+					}
+				}
+
+				screenshots.push({
+					viewport: vp.name ?? `${vp.width}x${vp.height}`,
+					data: result.screenshot,
+				})
+			}
+
+			return { success: true, data: { screenshots } }
+		} finally {
+			// Restore original viewport
+			if (originalViewport) {
+				await this.setViewportDimensions(
+					action.tab,
+					originalViewport.width,
+					originalViewport.height,
+				)
+			}
+		}
+	}
+
+	/**
+	 * Snap at multiple viewports.
+	 */
+	private async snapMultiViewport(action: {
+		tab?: TabRef | undefined
+		mode?: 'full' | 'interactive' | 'input_fields' | 'text_only' | undefined
+		interactive?: boolean | undefined
+		compact?: boolean | undefined
+		depth?: number | undefined
+		selector?: string | undefined
+		visibleOnly?: boolean | undefined
+		view?: string | undefined
+	}): Promise<ActionResult> {
+		if (this.isPairedActive()) {
+			return {
+				success: false,
+				error:
+					'snap is not available in paired mode. Use marker/html/text instead.',
+			}
+		}
+
+		if (!action.view) {
+			return { success: false, error: 'view parameter is required' }
+		}
+
+		const viewports = resolveViewFlag(action.view)
+		const snaps: Array<{
+			viewport: string
+			result: {
+				tree?: string | undefined
+				version?: number | undefined
+				url?: string | undefined
+				title?: string | undefined
+				mode?: string | undefined
+				interactiveCount?: number | undefined
+			}
+		}> = []
+
+		// Save original viewport
+		const originalViewport = await this.getCurrentViewport(action.tab)
+
+		try {
+			for (const vp of viewports) {
+				// Set viewport
+				const success = await this.setViewportDimensions(
+					action.tab,
+					vp.width,
+					vp.height,
+				)
+				if (!success) {
+					return {
+						success: false,
+						error: `Failed to set viewport to ${vp.width}x${vp.height}`,
+					}
+				}
+
+				// Small delay to let layout settle
+				await new Promise((resolve) => setTimeout(resolve, 100))
+
+				// Capture snap at this viewport
+				const result = await this.snap(action.tab, action.mode, {
+					interactive: action.interactive,
+					compact: action.compact,
+					depth: action.depth,
+					selector: action.selector,
+					visibleOnly: action.visibleOnly,
+				})
+
+				if (!result.success) {
+					return {
+						success: false,
+						error:
+							result.error ??
+							`Snap failed at viewport ${vp.name ?? `${vp.width}x${vp.height}`}`,
+					}
+				}
+
+				snaps.push({
+					viewport: vp.name ?? `${vp.width}x${vp.height}`,
+					result: {
+						tree: result.snapshot?.tree,
+						version: result.snapshot?.version,
+						url: result.snapshot?.url,
+						title: result.snapshot?.title,
+						mode: result.snapshot?.mode,
+						interactiveCount: result.snapshot?.interactiveCount,
+					},
+				})
+			}
+
+			return { success: true, data: { snaps } }
+		} finally {
+			// Restore original viewport
+			if (originalViewport) {
+				await this.setViewportDimensions(
+					action.tab,
+					originalViewport.width,
+					originalViewport.height,
+				)
+			}
 		}
 	}
 

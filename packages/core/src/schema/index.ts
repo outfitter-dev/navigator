@@ -15,6 +15,7 @@ export {
 	type ModeAction,
 	type NavigateAction,
 	type PressAction,
+	type ScreenshotAction,
 	type SnapAction,
 	type TabRef,
 	type TypeAction,
