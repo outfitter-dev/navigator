@@ -162,6 +162,7 @@ const snapAction = z.object({
 	compact: z.boolean().optional(),
 	depth: z.number().optional(),
 	selector: z.string().optional(),
+	visibleOnly: z.boolean().optional(),
 })
 
 const htmlAction = z.object({

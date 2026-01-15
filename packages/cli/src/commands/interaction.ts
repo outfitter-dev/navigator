@@ -44,6 +44,7 @@ export function registerInteractionCommands(
 		.command('snap')
 		.description('Snapshot page with element refs')
 		.option('-i, --interactive', 'Interactive elements only')
+		.option('-v, --visible', 'Visible elements only (in viewport)')
 		.option('-c, --compact', 'Compact output')
 		.option('-d, --depth <number>', 'Max depth')
 		.option('-s, --selector <selector>', 'Scope to selector')
@@ -55,6 +56,7 @@ export function registerInteractionCommands(
 			}>({
 				action: 'snap',
 				interactive: options.interactive,
+				visibleOnly: options.visible,
 				compact: options.compact,
 				depth: options.depth ? Number(options.depth) : undefined,
 				selector: options.selector,
