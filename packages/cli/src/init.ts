@@ -433,7 +433,9 @@ export async function runInit(
 	console.log()
 
 	const scopeLabel = selectedScope === 'global' ? 'Global' : 'Project'
-	const installSpinner = ora(`Installing ${scopeLabel.toLowerCase()}...`).start()
+	const installSpinner = ora(
+		`Installing ${scopeLabel.toLowerCase()}...`,
+	).start()
 
 	const installResult = await installPlugin(selectedScope, projectDir, {
 		debug,
