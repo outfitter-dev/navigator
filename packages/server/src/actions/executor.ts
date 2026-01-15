@@ -1158,7 +1158,12 @@ export class ActionExecutor {
 		if (ref.length !== 4) return null
 		const tabs = await this.browserManager.getTabs()
 		const match = tabs.find((tab) => tab.urlHash === ref)
-		return match ? (match.ref as number) : null
+		if (!match) return null
+		if (typeof match.ref === 'number') return match.ref
+		if (typeof match.ref === 'string') {
+			return this.parseTabIndexFromString(match.ref)
+		}
+		return null
 	}
 
 	private async resolveTabIndex(ref?: TabRef): Promise<number | null> {
