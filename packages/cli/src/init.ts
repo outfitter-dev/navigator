@@ -289,12 +289,13 @@ function installPlugin(
 // ============================================================================
 
 const selectTheme = {
-	prefix: { idle: green('?'), done: green('?') },
-	icon: { cursor: cyan('\u276F') },
+	prefix: { idle: green('?'), done: green('✔') },
+	icon: { cursor: cyan('\u276F') }, // ❯ in cyan
 	style: {
+		message: (text: string) => text, // Override Inquirer's default bold
 		disabled: (text: string) => dim(text),
-		highlight: (text: string) => text,
-		help: (text: string) => dim(`${text} - q quit`),
+		highlight: (text: string) => text, // Pointer indicates selection
+		help: (text: string) => dim(`  ${text} • q quit`),
 	},
 }
 
@@ -369,8 +370,8 @@ export async function runInit(
 	}
 
 	console.log()
-	console.log(bold('Install Navigator Claude Plugin'))
-	console.log(dim('Adds /navigator commands and SessionStart hook'))
+	console.log(bold('Install Navigator'))
+	console.log(dim('Browser automation plugin for Claude Code'))
 
 	const globalStatus = detectClaudeConfig('global', projectDir)
 	const projectStatus = detectClaudeConfig('project', projectDir)
@@ -381,7 +382,7 @@ export async function runInit(
 	console.log()
 
 	if (globalInstalled && projectInstalled) {
-		console.log('Navigator plugin is already installed in all locations.\n')
+		console.log('Navigator is already installed in all locations.\n')
 		return result
 	}
 
@@ -414,7 +415,7 @@ export async function runInit(
 
 	const allDisabled = choices.every((choice) => choice.disabled !== false)
 	if (allDisabled) {
-		console.log('Navigator plugin is already installed in all locations.\n')
+		console.log('Navigator is already installed in all locations.\n')
 		return result
 	}
 
@@ -433,7 +434,7 @@ export async function runInit(
 
 	const scopeLabel = selectedScope === 'global' ? 'Global' : 'Project'
 	const installSpinner = ora(
-		`Installing ${scopeLabel.toLowerCase()} plugin...`,
+		`Installing ${scopeLabel.toLowerCase()}...`,
 	).start()
 
 	const installResult = await installPlugin(selectedScope, projectDir, {
@@ -441,14 +442,18 @@ export async function runInit(
 	})
 
 	if (installResult.success) {
-		installSpinner.succeed(`${scopeLabel} plugin installed`)
+		let msg = `${scopeLabel} installed`
+		if (installResult.pluginInstalled) {
+			msg += ' + plugin ready'
+		}
+		installSpinner.succeed(msg)
 		if (selectedScope === 'global') {
 			result.globalInstalled = true
 		} else {
 			result.projectInstalled = true
 		}
 	} else {
-		installSpinner.fail(`Failed to install plugin: ${installResult.error}`)
+		installSpinner.fail(`Failed: ${installResult.error}`)
 		result.errors.push(installResult.error ?? 'Unknown error')
 		result.success = false
 	}
