@@ -647,6 +647,7 @@ export class ActionExecutor {
 			compact?: boolean | undefined
 			depth?: number | undefined
 			selector?: string | undefined
+			visibleOnly?: boolean | undefined
 		},
 	): Promise<ActionResult> {
 		if (this.isPairedActive()) {
@@ -721,6 +722,7 @@ export class ActionExecutor {
 			compact?: boolean | undefined
 			depth?: number | undefined
 			selector?: string | undefined
+			visibleOnly?: boolean | undefined
 		},
 	): Promise<ActionResult> {
 		const interactive = options.interactive ?? mode === 'input_fields'
@@ -733,6 +735,7 @@ export class ActionExecutor {
 			compact: options.compact,
 			maxDepth: options.depth,
 			selector: options.selector,
+			visibleOnly: options.visibleOnly,
 		})
 
 		if (!(response.success && response.data?.snapshot)) {

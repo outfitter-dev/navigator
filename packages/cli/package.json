@@ -10,7 +10,7 @@
 	"types": "./dist/index.d.ts",
 	"scripts": {
 		"build": "tsc && bun run build:bundle",
-		"build:bundle": "bun build ./src/index.ts --outdir ./dist --target bun",
+		"build:bundle": "bun build ./src/index.ts --outdir ./dist --target bun --sourcemap=external",
 		"dev": "bun --watch ./src/index.ts",
 		"start": "bun ./src/index.ts",
 		"typecheck": "tsc --noEmit"

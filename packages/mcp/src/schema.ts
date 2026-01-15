@@ -169,6 +169,7 @@ const snapAction = z.object({
 	action: z.literal('snap'),
 	tab: tabRefSchema.optional(),
 	interactive: z.boolean().optional().describe('Interactive elements only'),
+	visibleOnly: z.boolean().optional().describe('Show only visible elements'),
 	compact: z.boolean().optional().describe('Compact tree output'),
 	depth: z.number().int().min(0).optional().describe('Max depth for output'),
 	selector: selectorSchema.optional().describe('Scope snap to selector'),

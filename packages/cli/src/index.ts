@@ -11,6 +11,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Command } from 'commander'
 import { type ClientOptions, createClient } from './client.js'
+import { registerDisplayCommands } from './commands/display.js'
 import { registerDoctorCommand } from './commands/doctor.js'
 import { registerInteractionCommands } from './commands/interaction.js'
 import { registerMarkerCommands } from './commands/markers.js'
@@ -84,6 +85,9 @@ registerNavigationCommands(program, getClient)
 
 // Interaction: snap, click, type, select, hover, scroll, screenshot
 registerInteractionCommands(program, getClient)
+
+// Display: viewport, color-scheme
+registerDisplayCommands(program, getClient)
 
 // Markers: mark, markers, marker
 registerMarkerCommands(program, getClient)
