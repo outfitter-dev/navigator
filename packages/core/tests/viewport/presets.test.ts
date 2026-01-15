@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import {
-	getViewportDimensions,
 	TAILWIND_BREAKPOINTS,
 	VIEWPORT_PRESETS,
+	getViewportDimensions,
 } from '../../src/viewport/presets'
 
 describe('TAILWIND_BREAKPOINTS', () => {

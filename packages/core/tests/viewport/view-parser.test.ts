@@ -317,3 +317,77 @@ describe('resolveViewFlag', () => {
 		})
 	})
 })
+
+describe('parseViewFlag validation', () => {
+	describe('orientation validation', () => {
+		test('throws for invalid orientation modifier', () => {
+			expect(() => parseViewFlag('mobile:sideways')).toThrow(
+				/Invalid orientation 'sideways'/,
+			)
+		})
+
+		test('throws for invalid orientation on shorthand', () => {
+			expect(() => parseViewFlag('all:invalid')).toThrow(
+				/Invalid orientation 'invalid'/,
+			)
+		})
+
+		test('throws for invalid orientation on responsive shorthand', () => {
+			expect(() => parseViewFlag('responsive:diagonal')).toThrow(
+				/Invalid orientation 'diagonal'/,
+			)
+		})
+
+		test('accepts valid portrait orientation', () => {
+			expect(() => parseViewFlag('mobile:portrait')).not.toThrow()
+		})
+
+		test('accepts valid landscape orientation', () => {
+			expect(() => parseViewFlag('tablet:landscape')).not.toThrow()
+		})
+
+		test('accepts valid both orientation', () => {
+			expect(() => parseViewFlag('desktop:both')).not.toThrow()
+		})
+	})
+
+	describe('dimension validation', () => {
+		test('throws for non-numeric width in WxH', () => {
+			expect(() => parseViewFlag('foox800')).toThrow(
+				/Invalid dimensions 'foox800'/,
+			)
+		})
+
+		test('throws for non-numeric height in WxH', () => {
+			expect(() => parseViewFlag('500xbar')).toThrow(
+				/Invalid dimensions '500xbar'/,
+			)
+		})
+
+		test('throws for partial WxH (missing height)', () => {
+			expect(() => parseViewFlag('500x')).toThrow(/Invalid dimensions '500x'/)
+		})
+
+		test('throws for partial WxH (missing width)', () => {
+			expect(() => parseViewFlag('x800')).toThrow(/Invalid dimensions 'x800'/)
+		})
+
+		test('accepts valid WxH dimensions', () => {
+			expect(() => parseViewFlag('500x800')).not.toThrow()
+		})
+
+		test('accepts valid large dimensions', () => {
+			expect(() => parseViewFlag('1920x1080')).not.toThrow()
+		})
+	})
+
+	describe('empty value validation', () => {
+		test('throws for empty string', () => {
+			expect(() => parseViewFlag('')).toThrow(/cannot be empty/)
+		})
+
+		test('throws for whitespace-only string', () => {
+			expect(() => parseViewFlag('   ')).toThrow(/cannot be empty/)
+		})
+	})
+})
