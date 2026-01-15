@@ -274,32 +274,35 @@ function removeDirectory(path: string): boolean {
 
 function tryUninstallScopes(pluginStatus: PluginStatus): {
 	success: boolean
-	error?: string
+	errors: string[]
 } {
-	// No plugins installed means success
-	if (!pluginStatus.global && !pluginStatus.project) {
-		return { success: true }
-	}
-
-	let anySuccess = false
-	let firstError: string | undefined
+	const results: Array<{
+		label: 'Global' | 'Project'
+		result: { success: boolean; error?: string }
+	}> = []
 
 	if (pluginStatus.global) {
-		const globalResult = uninstallPlugin('user')
-		anySuccess = anySuccess || globalResult.success
-		firstError = firstError ?? globalResult.error
+		results.push({ label: 'Global', result: uninstallPlugin('user') })
 	}
-
 	if (pluginStatus.project) {
-		const projectResult = uninstallPlugin('project')
-		anySuccess = anySuccess || projectResult.success
-		firstError = firstError ?? projectResult.error
+		results.push({ label: 'Project', result: uninstallPlugin('project') })
 	}
 
-	if (anySuccess) {
-		return { success: true }
+	// No plugins installed means success
+	if (results.length === 0) {
+		return { success: true, errors: [] }
 	}
-	return firstError ? { success: false, error: firstError } : { success: false }
+
+	const errors = results
+		.filter(({ result }) => !result.success)
+		.map(({ label, result }) =>
+			result.error ? `${label}: ${result.error}` : `${label}: unknown error`,
+		)
+
+	return {
+		success: results.some(({ result }) => result.success),
+		errors,
+	}
 }
 
 function uninstallClaudePlugin(
@@ -310,15 +313,27 @@ function uninstallClaudePlugin(
 	const uninstallResult = tryUninstallScopes(pluginStatus)
 
 	if (uninstallResult.success) {
-		spinner.succeed('Uninstalled Claude plugin')
+		if (uninstallResult.errors.length > 0) {
+			spinner.warn('Uninstalled Claude plugin with warnings')
+			for (const error of uninstallResult.errors) {
+				console.error(dim(`  ${error}`))
+				result.errors.push(error)
+			}
+		} else {
+			spinner.succeed('Uninstalled Claude plugin')
+		}
 		result.pluginUninstalled = true
 		return
 	}
 
 	spinner.fail('Failed to uninstall plugin')
-	if (uninstallResult.error) {
-		console.error(dim(`  ${uninstallResult.error}`))
-		result.errors.push(uninstallResult.error)
+	if (uninstallResult.errors.length > 0) {
+		for (const error of uninstallResult.errors) {
+			console.error(dim(`  ${error}`))
+			result.errors.push(error)
+		}
+	} else {
+		result.errors.push('Failed to uninstall plugin')
 	}
 }
 

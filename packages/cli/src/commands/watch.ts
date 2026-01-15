@@ -252,9 +252,11 @@ async function watchSession(
 	const reconnectDelay = 1000
 	let currentWs: WebSocket | null = null
 	let resolveMain: (() => void) | null = null
+	let stopping = false
 
 	// Register signal handlers once, outside connect()
 	const cleanup = () => {
+		stopping = true
 		if (currentWs) {
 			currentWs.close()
 		}
@@ -294,6 +296,9 @@ async function watchSession(
 
 			ws.onclose = () => {
 				currentWs = null
+				if (stopping) {
+					return
+				}
 				if (reconnectAttempts < maxReconnectAttempts) {
 					reconnectAttempts++
 					if (!options.quiet && !options.json) {
