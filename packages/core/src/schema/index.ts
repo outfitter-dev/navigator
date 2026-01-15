@@ -6,13 +6,20 @@ export {
 	ActionSchema,
 	type Action,
 	type BrowserMode,
+	type CheckAction,
 	type ClickAction,
+	type DialogAction,
+	type FillAction,
+	type FindAction,
 	type MarkerAction,
 	type ModeAction,
 	type NavigateAction,
+	type PressAction,
 	type SnapAction,
 	type TabRef,
 	type TypeAction,
+	type UncheckAction,
+	type UploadAction,
 } from './action'
 
 export {
