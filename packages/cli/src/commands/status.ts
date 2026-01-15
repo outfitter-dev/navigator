@@ -43,6 +43,102 @@ interface SessionResponse {
 // Status Command
 // ============================================================================
 
+function isConnectionError(err: unknown): boolean {
+	return (
+		err instanceof Error &&
+		(err.message.includes('ECONNREFUSED') ||
+			err.message.includes('fetch failed'))
+	)
+}
+
+async function logServerStatus(
+	client: NavigatorClient,
+): Promise<{ ok: boolean; mode?: HealthResponse['mode'] }> {
+	try {
+		const healthResponse = await fetch(`${client.serverUrl}/health`)
+		if (!healthResponse.ok) {
+			console.log(`  Server: error (HTTP ${healthResponse.status})`)
+			return { ok: false }
+		}
+
+		const health = (await healthResponse.json()) as HealthResponse
+		const port = new URL(client.serverUrl).port
+		console.log(`  Server: running on :${port}`)
+
+		if (health.mode) {
+			console.log(`  Mode: ${health.mode}`)
+		}
+
+		return { ok: true, mode: health.mode }
+	} catch (err) {
+		if (isConnectionError(err)) {
+			console.log('  Server: not running')
+			return { ok: false }
+		}
+		console.log(
+			`  Server: error (${err instanceof Error ? err.message : String(err)})`,
+		)
+		return { ok: false }
+	}
+}
+
+function logSessionSummary(session?: SessionResponse['session']): void {
+	if (session) {
+		console.log(`  Session: ${session.id.slice(0, 8)}`)
+		return
+	}
+	console.log('  Session: none')
+}
+
+function formatActiveTab(activeTab: number | null | undefined): string {
+	if (activeTab === null || activeTab === undefined) return ''
+	return ` (active ${activeTab})`
+}
+
+function logTabSummary(
+	data: SessionResponse,
+	serverMode?: HealthResponse['mode'],
+): void {
+	const mode = data.browser?.mode ?? serverMode
+	const tabCount =
+		mode === 'paired' ? data.paired?.tabCount : data.browser?.tabCount
+	const activeTab =
+		mode === 'paired' ? data.paired?.activeTab : data.browser?.activeTab
+
+	if (tabCount === undefined) {
+		return
+	}
+
+	console.log(`  Tabs: ${tabCount} open${formatActiveTab(activeTab)}`)
+}
+
+function logExtensionStatus(paired?: SessionResponse['paired']): void {
+	if (!paired) return
+	console.log(`  Extension: ${paired.connected ? 'connected' : 'disconnected'}`)
+}
+
+async function logSessionStatus(
+	client: NavigatorClient,
+	serverMode?: HealthResponse['mode'],
+): Promise<void> {
+	try {
+		const sessionResponse = await fetch(`${client.serverUrl}/session`, {
+			headers: {
+				'X-Project-Path': client.projectPath,
+			},
+		})
+
+		if (!sessionResponse.ok) return
+
+		const data = (await sessionResponse.json()) as SessionResponse
+		logSessionSummary(data.session)
+		logTabSummary(data, serverMode)
+		logExtensionStatus(data.paired)
+	} catch {
+		// Session endpoint may not exist or may error - that's ok
+	}
+}
+
 export function registerStatusCommand(
 	program: Command,
 	getClient: () => NavigatorClient,
@@ -52,80 +148,14 @@ export function registerStatusCommand(
 		.description('Show Navigator runtime status')
 		.action(async () => {
 			const client = getClient()
-			let serverMode: HealthResponse['mode']
 
 			console.log('Navigator Status')
 
-			// Check server health
-			try {
-				const healthResponse = await fetch(`${client.serverUrl}/health`)
-				if (!healthResponse.ok) {
-					console.log(`  Server: error (HTTP ${healthResponse.status})`)
-					return
-				}
-
-				const health = (await healthResponse.json()) as HealthResponse
-				const port = new URL(client.serverUrl).port
-				console.log(`  Server: running on :${port}`)
-
-				if (health.mode) {
-					serverMode = health.mode
-					console.log(`  Mode: ${health.mode}`)
-				}
-			} catch (err) {
-				if (
-					err instanceof Error &&
-					(err.message.includes('ECONNREFUSED') ||
-						err.message.includes('fetch failed'))
-				) {
-					console.log('  Server: not running')
-					return
-				}
-				console.log(
-					`  Server: error (${err instanceof Error ? err.message : String(err)})`,
-				)
+			const serverStatus = await logServerStatus(client)
+			if (!serverStatus.ok) {
 				return
 			}
 
-			// Get session info
-			try {
-				const sessionResponse = await fetch(`${client.serverUrl}/session`, {
-					headers: {
-						'X-Project-Path': client.projectPath,
-					},
-				})
-
-				if (sessionResponse.ok) {
-					const data = (await sessionResponse.json()) as SessionResponse
-
-					if (data.session) {
-						console.log(`  Session: ${data.session.id.slice(0, 8)}`)
-					} else {
-						console.log('  Session: none')
-					}
-
-					const mode = data.browser?.mode ?? serverMode
-					const tabCount =
-						mode === 'paired' ? data.paired?.tabCount : data.browser?.tabCount
-					const activeTab =
-						mode === 'paired' ? data.paired?.activeTab : data.browser?.activeTab
-
-					if (tabCount !== undefined) {
-						const activeInfo =
-							activeTab !== null && activeTab !== undefined
-								? ` (active ${activeTab})`
-								: ''
-						console.log(`  Tabs: ${tabCount} open${activeInfo}`)
-					}
-
-					if (data.paired) {
-						console.log(
-							`  Extension: ${data.paired.connected ? 'connected' : 'disconnected'}`,
-						)
-					}
-				}
-			} catch {
-				// Session endpoint may not exist or may error - that's ok
-			}
+			await logSessionStatus(client, serverStatus.mode)
 		})
 }

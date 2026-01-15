@@ -281,6 +281,42 @@ function expandPresetRef(ref: PresetRef): ViewportPresetName[] {
 	return [ref]
 }
 
+function expandPresetNames(
+	names: readonly PresetRef[],
+): Set<ViewportPresetName> {
+	const expandedNames = new Set<ViewportPresetName>()
+	for (const name of names) {
+		for (const expanded of expandPresetRef(name)) {
+			expandedNames.add(expanded)
+		}
+	}
+	return expandedNames
+}
+
+function addResolvedViewport(
+	results: ResolvedViewport[],
+	name: ViewportPresetName,
+	orientation: 'portrait' | 'landscape',
+): void {
+	const viewport = getViewport(name, orientation)
+	if (viewport) {
+		results.push(viewport)
+	}
+}
+
+function addViewportsForName(
+	results: ResolvedViewport[],
+	name: ViewportPresetName,
+	orientation: Orientation,
+): void {
+	if (orientation === 'both') {
+		addResolvedViewport(results, name, 'portrait')
+		addResolvedViewport(results, name, 'landscape')
+		return
+	}
+	addResolvedViewport(results, name, orientation)
+}
+
 /**
  * Resolve viewport names to full viewport definitions
  *
@@ -317,33 +353,12 @@ export function resolveViewports(
 	orientation: Orientation = 'landscape',
 ): ResolvedViewport[] {
 	// Expand shorthands and deduplicate
-	const expandedNames = new Set<ViewportPresetName>()
-	for (const name of names) {
-		for (const expanded of expandPresetRef(name)) {
-			expandedNames.add(expanded)
-		}
-	}
+	const expandedNames = expandPresetNames(names)
 
 	const results: ResolvedViewport[] = []
 
 	for (const name of expandedNames) {
-		if (orientation === 'both') {
-			// Add portrait if supported
-			const portrait = getViewport(name, 'portrait')
-			if (portrait) {
-				results.push(portrait)
-			}
-			// Always add landscape
-			const landscape = getViewport(name, 'landscape')
-			if (landscape) {
-				results.push(landscape)
-			}
-		} else {
-			const viewport = getViewport(name, orientation)
-			if (viewport) {
-				results.push(viewport)
-			}
-		}
+		addViewportsForName(results, name, orientation)
 	}
 
 	return results

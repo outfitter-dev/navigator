@@ -182,6 +182,78 @@ function cleanupEmptyProjectDirs(): number {
 	return cleaned
 }
 
+function parseRetentionDays(value: unknown): number | null {
+	const retentionDays = Number(value)
+	if (Number.isNaN(retentionDays) || retentionDays < 0) {
+		return null
+	}
+	return retentionDays
+}
+
+function logOldSessions(
+	oldSessions: OldSession[],
+	retentionDays: number,
+): void {
+	console.log(
+		`Found ${oldSessions.length} session(s) older than ${retentionDays} days:\n`,
+	)
+	for (const session of oldSessions) {
+		const shortId = session.sessionId.slice(0, 8)
+		console.log(`  ${shortId} (${session.ageInDays} days old)`)
+	}
+	console.log()
+}
+
+async function confirmDeletion(
+	count: number,
+	skipConfirm: boolean,
+): Promise<boolean> {
+	if (skipConfirm) return true
+	const confirmed = await promptConfirm(`Delete ${count} session(s)? [y/N] `)
+	if (!confirmed) {
+		console.log('Cancelled.')
+		return false
+	}
+	return true
+}
+
+function deleteSessionsAndCount(oldSessions: OldSession[]): {
+	deleted: number
+	failed: number
+} {
+	let deleted = 0
+	let failed = 0
+
+	for (const session of oldSessions) {
+		if (deleteSession(session.path)) {
+			deleted++
+		} else {
+			failed++
+		}
+	}
+
+	return { deleted, failed }
+}
+
+function reportDeletionResults(results: {
+	deleted: number
+	failed: number
+	cleanedDirs: number
+}): void {
+	if (results.deleted > 0) {
+		console.log(`Deleted ${results.deleted} session(s).`)
+	}
+	if (results.cleanedDirs > 0) {
+		console.log(
+			`Cleaned up ${results.cleanedDirs} empty project director${results.cleanedDirs === 1 ? 'y' : 'ies'}.`,
+		)
+	}
+	if (results.failed > 0) {
+		console.log(`Failed to delete ${results.failed} session(s).`)
+		process.exitCode = 1
+	}
+}
+
 // ============================================================================
 // Tidy Command
 // ============================================================================
@@ -198,16 +270,15 @@ export function registerTidyCommand(program: Command): void {
 		.option('-y, --yes', 'Skip confirmation prompt')
 		.option('--dry-run', 'Show what would be deleted without deleting')
 		.action(async (options) => {
-			const retentionDays = Number(options.days)
-			const skipConfirm = options.yes === true
-			const dryRun = options.dryRun === true
-
-			if (Number.isNaN(retentionDays) || retentionDays < 0) {
+			const retentionDays = parseRetentionDays(options.days)
+			if (retentionDays === null) {
 				console.error('Error: --days must be a non-negative number')
 				process.exitCode = 1
 				return
 			}
 
+			const skipConfirm = options.yes === true
+			const dryRun = options.dryRun === true
 			const oldSessions = findOldSessions(retentionDays)
 
 			if (oldSessions.length === 0) {
@@ -216,14 +287,7 @@ export function registerTidyCommand(program: Command): void {
 			}
 
 			// List what will be deleted
-			console.log(
-				`Found ${oldSessions.length} session(s) older than ${retentionDays} days:\n`,
-			)
-			for (const session of oldSessions) {
-				const shortId = session.sessionId.slice(0, 8)
-				console.log(`  ${shortId} (${session.ageInDays} days old)`)
-			}
-			console.log()
+			logOldSessions(oldSessions, retentionDays)
 
 			if (dryRun) {
 				console.log('Dry run - no sessions were deleted.')
@@ -231,44 +295,18 @@ export function registerTidyCommand(program: Command): void {
 			}
 
 			// Confirm deletion
-			if (!skipConfirm) {
-				const confirmed = await promptConfirm(
-					`Delete ${oldSessions.length} session(s)? [y/N] `,
-				)
-
-				if (!confirmed) {
-					console.log('Cancelled.')
-					return
-				}
+			const confirmed = await confirmDeletion(oldSessions.length, skipConfirm)
+			if (!confirmed) {
+				return
 			}
 
 			// Delete sessions
-			let deleted = 0
-			let failed = 0
-
-			for (const session of oldSessions) {
-				if (deleteSession(session.path)) {
-					deleted++
-				} else {
-					failed++
-				}
-			}
+			const { deleted, failed } = deleteSessionsAndCount(oldSessions)
 
 			// Clean up empty project directories
 			const cleanedDirs = cleanupEmptyProjectDirs()
 
 			// Report results
-			if (deleted > 0) {
-				console.log(`Deleted ${deleted} session(s).`)
-			}
-			if (cleanedDirs > 0) {
-				console.log(
-					`Cleaned up ${cleanedDirs} empty project director${cleanedDirs === 1 ? 'y' : 'ies'}.`,
-				)
-			}
-			if (failed > 0) {
-				console.log(`Failed to delete ${failed} session(s).`)
-				process.exitCode = 1
-			}
+			reportDeletionResults({ deleted, failed, cleanedDirs })
 		})
 }

@@ -78,52 +78,86 @@ function formatDuration(duration?: number): string {
 	return `${(duration / 1000).toFixed(1)}s`
 }
 
+type EventFormatter = (
+	event: WatchEvent,
+	time: string,
+	quiet: boolean,
+) => string | null
+
+function formatConnectedEvent(
+	_event: WatchEvent,
+	time: string,
+	quiet: boolean,
+): string | null {
+	if (quiet) return null
+	return `[${time}] Connected to Navigator`
+}
+
+function formatActionEvent(
+	event: WatchEvent,
+	time: string,
+	quiet: boolean,
+): string | null {
+	const source = formatSource(event.source)
+	const status = formatStatus(event.status)
+	const duration =
+		event.status !== 'start' ? formatDuration(event.duration) : ''
+	const target = event.target ? ` -> ${truncate(event.target, 50)}` : ''
+	const error = event.error ? ` (${event.error})` : ''
+	const meta = formatMeta(event.meta)
+
+	if (quiet && event.status === 'start') return null
+
+	return `[${time}] ${source} ${event.action}${target} ${status}${duration ? ` ${duration}` : ''}${meta}${error}`
+}
+
+function formatTabEvent(
+	event: WatchEvent,
+	time: string,
+	quiet: boolean,
+): string | null {
+	if (quiet) return null
+	const tabAction = event.tabEvent ?? 'update'
+	return `[${time}] tab ${tabAction}${event.tabId ? ` ${event.tabId}` : ''}`
+}
+
+function formatModeEvent(
+	event: WatchEvent,
+	time: string,
+	quiet: boolean,
+): string | null {
+	if (quiet) return null
+	return `[${time}] mode changed${event.target ? ` -> ${event.target}` : ''}`
+}
+
+function formatExtensionEvent(
+	event: WatchEvent,
+	time: string,
+	quiet: boolean,
+): string | null {
+	if (quiet) return null
+	return `[${time}] extension ${event.status ?? 'event'}`
+}
+
+function formatErrorEvent(event: WatchEvent, time: string): string {
+	return `[${time}] ERROR: ${event.error ?? 'Unknown error'}`
+}
+
+const EVENT_FORMATTERS: Record<WatchEvent['type'], EventFormatter> = {
+	connected: formatConnectedEvent,
+	action: formatActionEvent,
+	tab: formatTabEvent,
+	mode: formatModeEvent,
+	extension: formatExtensionEvent,
+	error: (event, time, _quiet) => formatErrorEvent(event, time),
+}
+
 /**
  * Format an event for human-readable output.
  */
 function formatEvent(event: WatchEvent, quiet: boolean): string | null {
 	const time = formatTime(event.ts)
-
-	switch (event.type) {
-		case 'connected':
-			if (quiet) return null
-			return `[${time}] Connected to Navigator`
-
-		case 'action': {
-			const source = formatSource(event.source)
-			const status = formatStatus(event.status)
-			const duration =
-				event.status !== 'start' ? formatDuration(event.duration) : ''
-			const target = event.target ? ` -> ${truncate(event.target, 50)}` : ''
-			const error = event.error ? ` (${event.error})` : ''
-			const meta = formatMeta(event.meta)
-
-			if (quiet && event.status === 'start') return null
-
-			return `[${time}] ${source} ${event.action}${target} ${status}${duration ? ` ${duration}` : ''}${meta}${error}`
-		}
-
-		case 'tab': {
-			if (quiet) return null
-			const tabAction = event.tabEvent ?? 'update'
-			return `[${time}] tab ${tabAction}${event.tabId ? ` ${event.tabId}` : ''}`
-		}
-
-		case 'mode':
-			if (quiet) return null
-			return `[${time}] mode changed${event.target ? ` -> ${event.target}` : ''}`
-
-		case 'extension':
-			if (quiet) return null
-			return `[${time}] extension ${event.status ?? 'event'}`
-
-		case 'error':
-			return `[${time}] ERROR: ${event.error ?? 'Unknown error'}`
-
-		default:
-			if (quiet) return null
-			return `[${time}] ${event.type}`
-	}
+	return EVENT_FORMATTERS[event.type](event, time, quiet)
 }
 
 /**
@@ -165,6 +199,43 @@ function getWebSocketUrl(serverUrl: string): string {
 	const url = new URL(serverUrl)
 	const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
 	return `${protocol}//${url.host}/ws/watch`
+}
+
+function shouldFilterEvent(
+	event: WatchEvent,
+	source?: WatchOptions['source'],
+): boolean {
+	return Boolean(source && event.source && event.source !== source)
+}
+
+function emitEvent(event: WatchEvent, options: WatchOptions): void {
+	if (options.json) {
+		console.log(JSON.stringify(event))
+		return
+	}
+
+	const formatted = formatEvent(event, options.quiet ?? false)
+	if (formatted) {
+		console.log(formatted)
+	}
+}
+
+function parseWatchEvent(data: string): WatchEvent | null {
+	try {
+		return JSON.parse(data) as WatchEvent
+	} catch {
+		return null
+	}
+}
+
+function handleWatchMessage(
+	messageEvent: MessageEvent,
+	options: WatchOptions,
+): void {
+	const event = parseWatchEvent(String(messageEvent.data))
+	if (!event) return
+	if (shouldFilterEvent(event, options.source)) return
+	emitEvent(event, options)
 }
 
 /**
@@ -212,31 +283,7 @@ async function watchSession(
 			}
 
 			ws.onmessage = (messageEvent) => {
-				try {
-					const event = JSON.parse(String(messageEvent.data)) as WatchEvent
-
-					// Filter by source if specified
-					if (
-						options.source &&
-						event.source &&
-						event.source !== options.source
-					) {
-						return
-					}
-
-					if (options.json) {
-						// JSONL output
-						console.log(JSON.stringify(event))
-					} else {
-						// Human-readable output
-						const formatted = formatEvent(event, options.quiet ?? false)
-						if (formatted) {
-							console.log(formatted)
-						}
-					}
-				} catch {
-					// Ignore parse errors
-				}
+				handleWatchMessage(messageEvent, options)
 			}
 
 			ws.onerror = (error) => {
@@ -265,6 +312,35 @@ async function watchSession(
 	}
 
 	await connect()
+}
+
+async function ensureServerReady(client: NavigatorClient): Promise<boolean> {
+	try {
+		const healthResponse = await fetch(`${client.serverUrl}/health`)
+		if (!healthResponse.ok) {
+			console.error(`Server error: HTTP ${healthResponse.status}`)
+			process.exitCode = 1
+			return false
+		}
+		return true
+	} catch (err) {
+		if (
+			err instanceof Error &&
+			(err.message.includes('ECONNREFUSED') ||
+				err.message.includes('fetch failed'))
+		) {
+			console.error('Navigator server is not running.')
+			console.error('Start it with: nav serve')
+			process.exitCode = 1
+			return false
+		}
+		console.error(
+			'Error connecting to server:',
+			err instanceof Error ? err.message : String(err),
+		)
+		process.exitCode = 1
+		return false
+	}
 }
 
 // ============================================================================
@@ -299,32 +375,8 @@ export function registerWatchCommand(
 		.action(async (options: WatchOptions) => {
 			const client = getClient()
 
-			// First check if server is running
-			try {
-				const healthResponse = await fetch(`${client.serverUrl}/health`)
-				if (!healthResponse.ok) {
-					console.error(`Server error: HTTP ${healthResponse.status}`)
-					process.exitCode = 1
-					return
-				}
-			} catch (err) {
-				if (
-					err instanceof Error &&
-					(err.message.includes('ECONNREFUSED') ||
-						err.message.includes('fetch failed'))
-				) {
-					console.error('Navigator server is not running.')
-					console.error('Start it with: nav serve')
-					process.exitCode = 1
-					return
-				}
-				console.error(
-					'Error connecting to server:',
-					err instanceof Error ? err.message : String(err),
-				)
-				process.exitCode = 1
-				return
-			}
+			const canConnect = await ensureServerReady(client)
+			if (!canConnect) return
 
 			// Start watching
 			try {

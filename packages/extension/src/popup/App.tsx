@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import {
+	type Dispatch,
+	type SetStateAction,
+	useCallback,
+	useEffect,
+	useState,
+} from 'react'
 import { ConnectionStatus } from '../components/ConnectionStatus'
 import { MarkerList } from '../components/MarkerList'
 
@@ -26,12 +32,63 @@ interface StatusResponse {
 	pairedMode?: boolean
 }
 
+interface RuntimeMessage {
+	type?: string
+	payload?: Marker
+	paired?: boolean
+}
+
 /**
  * Generate unique marker ID
  */
 let markerIdCounter = 0
 function generateMarkerId(): string {
 	return `marker-${++markerIdCounter}-${Date.now()}`
+}
+
+function handleMarkerCreated(
+	payload: Marker | undefined,
+	setMarkers: Dispatch<SetStateAction<Marker[]>>,
+): void {
+	if (!payload) return
+	setMarkers((prev) => [
+		...prev,
+		{
+			...payload,
+			id: payload.id || generateMarkerId(),
+		} as Marker,
+	])
+}
+
+function handleRuntimeMessage(
+	message: RuntimeMessage,
+	handlers: {
+		setConnected: Dispatch<SetStateAction<boolean>>
+		setPairedMode: Dispatch<SetStateAction<boolean>>
+		setMarkerMode: Dispatch<SetStateAction<boolean>>
+		setMarkers: Dispatch<SetStateAction<Marker[]>>
+	},
+): void {
+	switch (message.type) {
+		case 'connected':
+			handlers.setConnected(true)
+			return
+		case 'disconnected':
+			handlers.setConnected(false)
+			handlers.setPairedMode(false)
+			return
+		case 'pairedModeChanged':
+			handlers.setPairedMode(message.paired ?? false)
+			return
+		case 'markerCreated':
+			handleMarkerCreated(message.payload, handlers.setMarkers)
+			return
+		case 'markerModeCancelled':
+			handlers.setMarkerMode(false)
+			return
+		default:
+			return
+	}
 }
 
 /**
@@ -67,35 +124,13 @@ export default function App() {
 		)
 
 		// Listen for status updates
-		const listener = (message: {
-			type?: string
-			payload?: Marker
-			paired?: boolean
-		}) => {
-			if (message.type === 'connected') {
-				setConnected(true)
-			}
-			if (message.type === 'disconnected') {
-				setConnected(false)
-				setPairedMode(false)
-			}
-			if (message.type === 'pairedModeChanged') {
-				setPairedMode(message.paired ?? false)
-			}
-			if (message.type === 'markerCreated' && message.payload) {
-				const payload = message.payload
-				setMarkers((prev) => [
-					...prev,
-					{
-						...payload,
-						id: payload.id || generateMarkerId(),
-					} as Marker,
-				])
-			}
-			if (message.type === 'markerModeCancelled') {
-				setMarkerMode(false)
-			}
-		}
+		const listener = (message: RuntimeMessage) =>
+			handleRuntimeMessage(message, {
+				setConnected,
+				setPairedMode,
+				setMarkerMode,
+				setMarkers,
+			})
 
 		chrome.runtime.onMessage.addListener(listener)
 		return () => chrome.runtime.onMessage.removeListener(listener)
