@@ -5,7 +5,8 @@
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"scripts": {
-		"build": "bun build ./src/index.ts --outdir ./dist --target bun && tsc --emitDeclarationOnly",
+		"build": "tsc && bun run build:bundle",
+		"build:bundle": "bun build ./src/index.ts --outdir ./dist --target bun",
 		"dev": "bun --watch ./src/index.ts",
 		"start": "bun ./src/index.ts",
 		"typecheck": "tsc --noEmit",

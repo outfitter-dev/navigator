@@ -1,4 +1,5 @@
 {
+	"files": [],
 	"compilerOptions": {
 		"target": "ES2022",
 		"module": "ESNext",
@@ -20,7 +21,6 @@
 		{ "path": "./packages/core" },
 		{ "path": "./packages/server" },
 		{ "path": "./packages/mcp" },
-		{ "path": "./packages/cli" },
-		{ "path": "./packages/extension" }
+		{ "path": "./packages/cli" }
 	]
 }

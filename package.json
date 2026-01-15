@@ -5,12 +5,14 @@
 	"scripts": {
 		"dev": "bun run --filter @outfitter/navigator-server dev",
 		"dev:mcp": "bun run --filter @outfitter/navigator-mcp dev",
-		"build": "bun run --filter '*' build",
-		"typecheck": "bun run --filter '*' typecheck",
+		"build": "tsc --build && bun run build:bundle",
+		"build:bundle": "bun run --filter @outfitter/navigator-server build:bundle && bun run --filter @outfitter/navigator-cli build:bundle && bun run --filter @outfitter/navigator-mcp build:bundle && bun run --filter @outfitter/navigator-extension build",
+		"typecheck": "tsc --build --noEmit",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
-		"test": "bun test"
+		"test": "bun test",
+		"clean": "rm -rf packages/*/dist"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",

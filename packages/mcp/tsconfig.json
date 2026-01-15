@@ -5,8 +5,8 @@
 		"rootDir": "./src",
 		"declaration": true,
 		"declarationMap": true,
-		"noEmit": false,
-		"emitDeclarationOnly": true
+		"sourceMap": true,
+		"composite": true
 	},
 	"include": ["src/**/*"],
 	"exclude": ["node_modules", "dist"]
