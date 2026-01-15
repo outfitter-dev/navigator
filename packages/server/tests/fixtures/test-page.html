@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Navigator Test Page</title>
+	<style>
+		.hidden { display: none; }
+		.disabled { pointer-events: none; opacity: 0.5; }
+		.modal { border: 1px solid #ccc; padding: 20px; }
+		form { margin: 20px 0; }
+		label { display: block; margin: 10px 0 5px; }
+		input, select, textarea { margin-bottom: 10px; }
+	</style>
+</head>
+<body>
+	<h1>Navigator Test Page</h1>
+
+	<!-- Text inputs for fill/type tests -->
+	<form id="test-form">
+		<label for="username">Username</label>
+		<input type="text" id="username" name="username" placeholder="Enter username" data-testid="username-input">
+
+		<label for="email">Email</label>
+		<input type="email" id="email" name="email" placeholder="Enter email" data-testid="email-input">
+
+		<label for="password">Password</label>
+		<input type="password" id="password" name="password" placeholder="Enter password" data-testid="password-input">
+
+		<label for="search">Search</label>
+		<input type="search" id="search" name="search" placeholder="Search...">
+
+		<label for="bio">Bio</label>
+		<textarea id="bio" name="bio" rows="4" placeholder="Tell us about yourself" data-testid="bio-textarea"></textarea>
+	</form>
+
+	<!-- Checkboxes for check/uncheck tests -->
+	<fieldset id="checkboxes">
+		<legend>Preferences</legend>
+		<label>
+			<input type="checkbox" id="agree" name="agree" data-testid="agree-checkbox">
+			I agree to the terms
+		</label>
+		<label>
+			<input type="checkbox" id="newsletter" name="newsletter" checked data-testid="newsletter-checkbox">
+			Subscribe to newsletter
+		</label>
+		<label>
+			<input type="checkbox" id="notifications" name="notifications" disabled data-testid="notifications-checkbox">
+			Enable notifications (disabled)
+		</label>
+	</fieldset>
+
+	<!-- Buttons for click/press tests -->
+	<div id="buttons">
+		<button type="button" id="submit-btn" data-testid="submit-button">Submit</button>
+		<button type="button" id="cancel-btn" data-testid="cancel-button">Cancel</button>
+		<button type="button" id="disabled-btn" disabled data-testid="disabled-button">Disabled</button>
+		<button type="reset" id="reset-btn">Reset Form</button>
+	</div>
+
+	<!-- Links for find tests -->
+	<nav id="navigation">
+		<a href="/home" data-testid="home-link">Home</a>
+		<a href="/about" data-testid="about-link">About</a>
+		<a href="/settings" data-testid="settings-link">Settings</a>
+		<a href="/help" class="hidden" data-testid="hidden-link">Help (hidden)</a>
+	</nav>
+
+	<!-- File upload for upload tests -->
+	<div id="uploads">
+		<label for="single-file">Single File Upload</label>
+		<input type="file" id="single-file" name="single-file" data-testid="single-file-input">
+
+		<label for="multi-file">Multiple File Upload</label>
+		<input type="file" id="multi-file" name="multi-file" multiple data-testid="multi-file-input">
+
+		<label for="image-file">Image Upload (accept images only)</label>
+		<input type="file" id="image-file" name="image-file" accept="image/*" data-testid="image-file-input">
+	</div>
+
+	<!-- Dropdowns for select tests -->
+	<div id="selects">
+		<label for="country">Country</label>
+		<select id="country" name="country" data-testid="country-select">
+			<option value="">Select a country</option>
+			<option value="us">United States</option>
+			<option value="uk">United Kingdom</option>
+			<option value="ca">Canada</option>
+		</select>
+
+		<label for="colors">Favorite Colors (multiple)</label>
+		<select id="colors" name="colors" multiple data-testid="colors-select">
+			<option value="red">Red</option>
+			<option value="green">Green</option>
+			<option value="blue">Blue</option>
+		</select>
+	</div>
+
+	<!-- Modal for scoped find tests -->
+	<div id="modal" class="modal" data-testid="modal-container">
+		<h2>Modal Dialog</h2>
+		<p>This is a modal with nested elements.</p>
+		<button type="button" id="modal-confirm" data-testid="modal-confirm">Confirm</button>
+		<button type="button" id="modal-cancel" data-testid="modal-cancel">Cancel</button>
+		<input type="text" id="modal-input" placeholder="Modal input" data-testid="modal-input">
+	</div>
+
+	<!-- Elements with various roles for role-based find tests -->
+	<div id="role-elements">
+		<div role="alert" data-testid="alert-role">This is an alert</div>
+		<div role="status" data-testid="status-role">Current status: OK</div>
+		<div role="dialog" data-testid="dialog-role">
+			<h3>Dialog Content</h3>
+			<p>Some dialog text</p>
+		</div>
+		<ul role="listbox" data-testid="listbox-role">
+			<li role="option" data-testid="option-1">Option 1</li>
+			<li role="option" data-testid="option-2">Option 2</li>
+			<li role="option" data-testid="option-3">Option 3</li>
+		</ul>
+	</div>
+
+	<!-- Elements for visibility tests -->
+	<div id="visibility-tests">
+		<div id="visible-element" data-testid="visible-element">I am visible</div>
+		<div id="hidden-display" style="display: none;" data-testid="hidden-display">Hidden by display</div>
+		<div id="hidden-visibility" style="visibility: hidden;" data-testid="hidden-visibility">Hidden by visibility</div>
+		<div id="zero-size" style="width: 0; height: 0; overflow: hidden;" data-testid="zero-size">Zero size element</div>
+	</div>
+
+	<!-- Script for dialog tests -->
+	<script>
+		// Dialog trigger buttons
+		const alertBtn = document.createElement('button');
+		alertBtn.id = 'alert-trigger';
+		alertBtn.textContent = 'Show Alert';
+		alertBtn.dataset.testid = 'alert-trigger';
+		alertBtn.onclick = () => alert('Test alert message');
+		document.getElementById('buttons').appendChild(alertBtn);
+
+		const confirmBtn = document.createElement('button');
+		confirmBtn.id = 'confirm-trigger';
+		confirmBtn.textContent = 'Show Confirm';
+		confirmBtn.dataset.testid = 'confirm-trigger';
+		confirmBtn.onclick = () => {
+			const result = confirm('Test confirm message');
+			console.log('Confirm result:', result);
+		};
+		document.getElementById('buttons').appendChild(confirmBtn);
+
+		const promptBtn = document.createElement('button');
+		promptBtn.id = 'prompt-trigger';
+		promptBtn.textContent = 'Show Prompt';
+		promptBtn.dataset.testid = 'prompt-trigger';
+		promptBtn.onclick = () => {
+			const result = prompt('Test prompt message', 'default value');
+			console.log('Prompt result:', result);
+		};
+		document.getElementById('buttons').appendChild(promptBtn);
+
+		// Keyboard event listener for press tests
+		document.addEventListener('keydown', (e) => {
+			console.log('Key pressed:', e.key, 'Modifiers:', {
+				ctrl: e.ctrlKey,
+				alt: e.altKey,
+				shift: e.shiftKey,
+				meta: e.metaKey
+			});
+		});
+	</script>
+</body>
+</html>
