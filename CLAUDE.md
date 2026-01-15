@@ -39,12 +39,16 @@ nav init                       # Install Claude plugin
 
 Navigator is a unified browser control system for AI agents. Single-action MCP pattern: one `navigator` tool with action routing instead of 26+ separate tools.
 
+### Built on agent-browser
+
+Navigator extends [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser), adding paired mode, markers, sessions, and UX enhancements. We maintain a fork at [@outfitter/agent-browser](https://github.com/outfitter-dev/agent-browser) and contribute general-purpose improvements back upstream.
+
 ### Packages
 
 ```
 packages/
 ├── core/       # Types, Zod schemas, config loader
-├── server/     # Hono HTTP/WS server, browser control via agent-browser (Playwright)
+├── server/     # Hono HTTP/WS server, browser control via @outfitter/agent-browser (Playwright)
 ├── mcp/        # MCP server wrapping navigator-server
 ├── cli/        # CLI wrapper sending actions to server
 ├── extension/  # Chrome extension for paired mode (Vite + React)

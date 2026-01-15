@@ -2,7 +2,17 @@
 
 Browser automation for AI agents. Clean, simple, contributable.
 
-Navigator exposes a single action-based MCP tool, supports selector-first interactions, and includes a marker system for durable UI annotations. Powered by `@outfitter/agent-browser` (Playwright under the hood).
+Navigator exposes a single action-based MCP tool, supports selector-first interactions, and includes a marker system for durable UI annotations.
+
+## Built on agent-browser
+
+Navigator extends [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser), adding paired mode (work in your browser via Chrome extension), a marker system for UI annotations, session continuity, and other UX enhancements for AI agents.
+
+We maintain a fork at [@outfitter/agent-browser](https://github.com/outfitter-dev/agent-browser). As we develop enhancements that benefit the broader community, we contribute them back upstream.
+
+**Contribution process:**
+1. Implement and test changes in our fork
+2. File a PR against [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser)
 
 ## Features
 

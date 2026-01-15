@@ -4,14 +4,14 @@ Set up `@outfitter/agent-browser` as Navigator's browser automation dependency.
 
 ## Overview
 
-Navigator depends on `@outfitter/agent-browser` (a fork of browser-use/agent-browser) for Playwright-based browser control. This document covers the fork setup, build process, and publish workflow.
+Navigator depends on `@outfitter/agent-browser` (a fork of [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser)) for Playwright-based browser control. This document covers the fork setup, build process, and publish workflow.
 
 ## Fork Strategy
 
-**Relationship**: Navigator consumes `@outfitter/agent-browser` as a dependency—no modifications to the fork initially.
+**Relationship**: Navigator consumes `@outfitter/agent-browser` as a dependency. We extend agent-browser with Navigator-specific enhancements (paired mode, markers, sessions).
 
 ```
-@anthropic/agent-browser (upstream)
+vercel-labs/agent-browser (upstream)
         ↓ fork
 @outfitter/agent-browser (our fork)
         ↓ npm dependency
@@ -23,13 +23,21 @@ Navigator depends on `@outfitter/agent-browser` (a fork of browser-use/agent-bro
 - Can contribute upstream if we add features
 - Navigator owns everything above the browser automation layer
 
+## Contributing Back
+
+When we develop enhancements that would benefit the broader community:
+
+1. **Implement in our fork** — Make changes in `@outfitter/agent-browser`
+2. **Test thoroughly** — Ensure the changes work in Navigator and don't break existing functionality
+3. **File upstream PR** — Submit a PR against [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser)
+
 ## Tasks
 
 ### 1. Fork Repository
 
 ```bash
-# Fork via GitHub UI: anthropics/agent-browser → outfitter/agent-browser
-gh repo fork anthropics/agent-browser --org outfitter --clone
+# Fork via GitHub UI: vercel-labs/agent-browser → outfitter-dev/agent-browser
+gh repo fork vercel-labs/agent-browser --org outfitter-dev --clone
 cd agent-browser
 ```
 
@@ -148,6 +156,6 @@ None (first step in build sequence).
 
 ## Notes
 
-- Keep the fork minimal—no code changes initially
-- If we add features later, consider contributing upstream
-- Version sync: track upstream releases, merge as needed
+- Keep the fork minimal—only changes that Navigator specifically needs
+- Contribute general-purpose enhancements back to vercel-labs/agent-browser
+- Version sync: track upstream releases from Vercel, merge as needed
