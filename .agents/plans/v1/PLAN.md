@@ -39,9 +39,9 @@ Browser automation for AI agents. Clean, simple, contributable.
 
 ### Phase 1: Foundation
 1. **Fork Setup** → `01-fork-setup.md`
-   - Fork agent-browser to @outfitter/agent-browser
+   - Fork [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) to @outfitter/agent-browser
    - Set up build, CI, publish workflow
-   - No changes to code initially
+   - Contribute general-purpose enhancements back upstream
 
 2. **Core Types** → `02-core-types.md`
    - Storage paths (XDG-compliant)
