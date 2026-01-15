@@ -58,3 +58,12 @@ export {
 	hashUrl,
 	type SessionPaths,
 } from './storage'
+
+// Utilities
+export {
+	parseKeyCombo,
+	normalizeColorScheme,
+	type KeyCombo,
+	type ColorSchemeInput,
+	type ColorSchemeOutput,
+} from './utils'

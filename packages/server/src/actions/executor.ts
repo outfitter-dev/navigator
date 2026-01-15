@@ -11,11 +11,13 @@ import type {
 	Action,
 	ActionResult,
 	ColorScheme,
+	FindAction,
 	Geometry,
 	NavigatorConfig,
 	TabRef,
 	Viewport,
 } from '@outfitter/navigator-core'
+import { parseKeyCombo } from '@outfitter/navigator-core'
 import type { BrowserManager } from '../browser/manager'
 import { MarkerStore, markersToMarkdown } from '../markers'
 import type { PairedManager } from '../paired/manager'
@@ -207,6 +209,25 @@ export class ActionExecutor {
 					action.y,
 					action.tab,
 				)
+			case 'press':
+				return this.press(action.key, action.tab)
+			case 'fill':
+				return this.fill(action.ref, action.selector, action.value, action.tab)
+			case 'find':
+				return this.find(action)
+			case 'check':
+				return this.check(action.ref, action.selector, action.tab)
+			case 'uncheck':
+				return this.uncheck(action.ref, action.selector, action.tab)
+			case 'upload':
+				return this.upload(
+					action.ref,
+					action.selector,
+					action.files,
+					action.tab,
+				)
+			case 'dialog':
+				return this.dialog(action.handler, action.text, action.tab)
 
 			// Wait
 			case 'waitFor':
@@ -308,6 +329,13 @@ export class ActionExecutor {
 			'hover',
 			'focus',
 			'scroll',
+			'press',
+			'fill',
+			'find',
+			'check',
+			'uncheck',
+			'upload',
+			'dialog',
 			'waitFor',
 			'waitForNavigation',
 			'wait',
@@ -548,6 +576,312 @@ export class ActionExecutor {
 		)
 		if (!response.success) {
 			return { success: false, error: response.error ?? 'Scroll failed' }
+		}
+		return { success: true }
+	}
+
+	private async press(key: string, tab?: TabRef): Promise<ActionResult> {
+		const { key: normalizedKey, modifiers } = parseKeyCombo(key)
+
+		// Build Playwright key format: "Control+Shift+k"
+		const playwrightKey =
+			modifiers.length > 0
+				? `${modifiers.join('+')}+${normalizedKey}`
+				: normalizedKey
+
+		const response = await this.sendCommand(
+			{ action: 'press', key: playwrightKey },
+			tab,
+		)
+		if (!response.success) {
+			return { success: false, error: response.error ?? 'Press failed' }
+		}
+		return { success: true }
+	}
+
+	private async fill(
+		ref: string | undefined,
+		selector: string | undefined,
+		value: string,
+		tab?: TabRef,
+	): Promise<ActionResult> {
+		const target = this.resolveSelector(ref, selector)
+		if (!target) {
+			return { success: false, error: 'fill requires ref or selector' }
+		}
+
+		const response = await this.sendCommand(
+			{ action: 'fill', selector: target, value },
+			tab,
+		)
+		if (!response.success) {
+			return { success: false, error: response.error ?? 'Fill failed' }
+		}
+		return { success: true }
+	}
+
+	private async find(action: FindAction): Promise<ActionResult> {
+		// Build script to find elements using Playwright locators
+		// This runs in the browser context via evaluate
+		const script = `
+			async (args) => {
+				const { text, exact, role, label, placeholder, testid, ref,
+								inRef, inCss, inTag, tag, visible, enabled, checked } = args
+
+				// Helper to get element info
+				const getElementInfo = (el, index) => {
+					const rect = el.getBoundingClientRect()
+					const computedStyle = window.getComputedStyle(el)
+					const isVisible = rect.width > 0 && rect.height > 0 &&
+						computedStyle.visibility !== 'hidden' &&
+						computedStyle.display !== 'none'
+
+					const attrs = {}
+					for (const attr of el.attributes) {
+						attrs[attr.name] = attr.value
+					}
+
+					return {
+						ref: 'e' + index,
+						text: el.textContent?.trim().slice(0, 100) || '',
+						role: el.getAttribute('role') || el.tagName.toLowerCase(),
+						tag: el.tagName.toLowerCase(),
+						box: {
+							x: Math.round(rect.x),
+							y: Math.round(rect.y),
+							width: Math.round(rect.width),
+							height: Math.round(rect.height)
+						},
+						visible: isVisible,
+						enabled: !el.disabled,
+						checked: el.checked ?? null,
+						attributes: attrs
+					}
+				}
+
+				// Determine search scope
+				let scope = document.body
+				if (inRef) {
+					// Find element by ref - look for data-ref attribute
+					const refNum = inRef.replace(/^@?e/, '')
+					scope = document.querySelector('[data-ref="' + refNum + '"]') || scope
+				} else if (inCss) {
+					scope = document.querySelector(inCss) || scope
+				} else if (inTag) {
+					scope = document.querySelector(inTag) || scope
+				}
+
+				// Build selector/query
+				let elements = []
+
+				if (ref) {
+					// Looking up a specific ref
+					const refNum = ref.replace(/^@?e/, '')
+					const el = document.querySelector('[data-ref="' + refNum + '"]')
+					if (el) elements = [el]
+				} else if (testid) {
+					elements = Array.from(scope.querySelectorAll('[data-testid="' + testid + '"]'))
+				} else if (role) {
+					// Search by ARIA role
+					elements = Array.from(scope.querySelectorAll('[role="' + role + '"]'))
+					// Also include implicit roles
+					const implicitRoles = {
+						button: ['button', 'input[type="button"]', 'input[type="submit"]'],
+						link: ['a[href]'],
+						checkbox: ['input[type="checkbox"]'],
+						textbox: ['input[type="text"]', 'input[type="email"]', 'input[type="password"]', 'textarea'],
+						listitem: ['li'],
+						list: ['ul', 'ol'],
+						heading: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+					}
+					if (implicitRoles[role]) {
+						for (const selector of implicitRoles[role]) {
+							elements = elements.concat(Array.from(scope.querySelectorAll(selector)))
+						}
+					}
+				} else if (label) {
+					// Find by label text
+					const labels = Array.from(scope.querySelectorAll('label'))
+					for (const lbl of labels) {
+						if (lbl.textContent?.includes(label)) {
+							if (lbl.htmlFor) {
+								const el = document.getElementById(lbl.htmlFor)
+								if (el) elements.push(el)
+							}
+							// Also check nested inputs
+							const nested = lbl.querySelector('input, select, textarea')
+							if (nested) elements.push(nested)
+						}
+					}
+				} else if (placeholder) {
+					elements = Array.from(scope.querySelectorAll('[placeholder*="' + placeholder + '"]'))
+				} else if (text) {
+					// Text search - walk the DOM
+					const walker = document.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT)
+					while (walker.nextNode()) {
+						const el = walker.currentNode
+						const elText = el.textContent?.trim() || ''
+						if (exact ? elText === text : elText.includes(text)) {
+							elements.push(el)
+						}
+					}
+				} else {
+					// No specific criteria - return all interactive elements
+					elements = Array.from(scope.querySelectorAll('a, button, input, select, textarea, [role]'))
+				}
+
+				// Apply filters
+				if (tag) {
+					elements = elements.filter(el => el.tagName.toLowerCase() === tag.toLowerCase())
+				}
+				if (visible !== undefined) {
+					elements = elements.filter(el => {
+						const rect = el.getBoundingClientRect()
+						const style = window.getComputedStyle(el)
+						const isVis = rect.width > 0 && rect.height > 0 &&
+							style.visibility !== 'hidden' && style.display !== 'none'
+						return visible ? isVis : !isVis
+					})
+				}
+				if (enabled !== undefined) {
+					elements = elements.filter(el => enabled ? !el.disabled : el.disabled)
+				}
+				if (checked !== undefined) {
+					elements = elements.filter(el => el.checked === checked)
+				}
+
+				// Dedupe and map to info
+				const seen = new Set()
+				const results = []
+				let index = 0
+				for (const el of elements) {
+					if (seen.has(el)) continue
+					seen.add(el)
+					results.push(getElementInfo(el, index++))
+				}
+
+				return results.slice(0, 50) // Limit results
+			}
+		`
+
+		const response = await this.withTab(action.tab, async () =>
+			this.browserManager.send<{ result: unknown }>({
+				action: 'evaluate',
+				script,
+				args: [
+					{
+						text: action.text,
+						exact: action.exact,
+						role: action.role,
+						label: action.label,
+						placeholder: action.placeholder,
+						testid: action.testid,
+						ref: action.ref,
+						inRef: action.inRef,
+						inCss: action.inCss,
+						inTag: action.inTag,
+						tag: action.tag,
+						visible: action.visible,
+						enabled: action.enabled,
+						checked: action.checked,
+					},
+				],
+			}),
+		)
+
+		if (!response.success) {
+			return { success: false, error: response.error ?? 'Find failed' }
+		}
+
+		const results = response.data?.result
+		if (!Array.isArray(results)) {
+			return { success: false, error: 'Find returned invalid results' }
+		}
+
+		if (results.length === 0) {
+			return { success: true, data: [], extractedContent: 'No elements found' }
+		}
+
+		return {
+			success: true,
+			data: results,
+			extractedContent: JSON.stringify(results, null, 2),
+		}
+	}
+
+	private async check(
+		ref: string | undefined,
+		selector: string | undefined,
+		tab?: TabRef,
+	): Promise<ActionResult> {
+		const target = this.resolveSelector(ref, selector)
+		if (!target) {
+			return { success: false, error: 'check requires ref or selector' }
+		}
+
+		const response = await this.sendCommand(
+			{ action: 'check', selector: target },
+			tab,
+		)
+		if (!response.success) {
+			return { success: false, error: response.error ?? 'Check failed' }
+		}
+		return { success: true }
+	}
+
+	private async uncheck(
+		ref: string | undefined,
+		selector: string | undefined,
+		tab?: TabRef,
+	): Promise<ActionResult> {
+		const target = this.resolveSelector(ref, selector)
+		if (!target) {
+			return { success: false, error: 'uncheck requires ref or selector' }
+		}
+
+		const response = await this.sendCommand(
+			{ action: 'uncheck', selector: target },
+			tab,
+		)
+		if (!response.success) {
+			return { success: false, error: response.error ?? 'Uncheck failed' }
+		}
+		return { success: true }
+	}
+
+	private async upload(
+		ref: string | undefined,
+		selector: string | undefined,
+		files: string[],
+		tab?: TabRef,
+	): Promise<ActionResult> {
+		const target = this.resolveSelector(ref, selector)
+		if (!target) {
+			return { success: false, error: 'upload requires ref or selector' }
+		}
+
+		const response = await this.sendCommand(
+			{ action: 'upload', selector: target, files },
+			tab,
+		)
+		if (!response.success) {
+			return { success: false, error: response.error ?? 'Upload failed' }
+		}
+		return { success: true }
+	}
+
+	private async dialog(
+		handler: 'accept' | 'dismiss' | 'prompt' | 'clear',
+		text?: string,
+		tab?: TabRef,
+	): Promise<ActionResult> {
+		// Map handler to agent-browser dialog action format
+		const response = await this.sendCommand(
+			{ action: 'dialog', handler, text },
+			tab,
+		)
+		if (!response.success) {
+			return { success: false, error: response.error ?? 'Dialog setup failed' }
 		}
 		return { success: true }
 	}
@@ -1228,7 +1562,23 @@ export class ActionExecutor {
 			case 'focus':
 			case 'scroll':
 			case 'waitFor':
+			case 'fill':
+			case 'check':
+			case 'uncheck':
+			case 'upload':
 				return action.ref ?? action.selector
+			case 'press':
+				return action.key
+			case 'find':
+				return (
+					action.text ??
+					action.role ??
+					action.label ??
+					action.testid ??
+					action.ref
+				)
+			case 'dialog':
+				return action.handler
 			case 'tab':
 			case 'closeTab':
 				return action.ref !== undefined ? String(action.ref) : undefined
