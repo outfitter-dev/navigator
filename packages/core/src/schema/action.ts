@@ -116,6 +116,71 @@ const scrollAction = z.object({
 	tab: tabRefSchema.optional(),
 })
 
+const pressAction = z.object({
+	action: z.literal('press'),
+	key: z.string().min(1),
+	tab: tabRefSchema.optional(),
+})
+
+const fillAction = z.object({
+	action: z.literal('fill'),
+	ref: z.string().regex(elementRefPattern).optional(),
+	selector: z.string().optional(),
+	value: z.string(),
+	tab: tabRefSchema.optional(),
+})
+
+const findAction = z.object({
+	action: z.literal('find'),
+	// Search criteria
+	text: z.string().optional(),
+	exact: z.boolean().optional(),
+	role: z.string().optional(),
+	label: z.string().optional(),
+	placeholder: z.string().optional(),
+	testid: z.string().optional(),
+	ref: z.string().regex(elementRefPattern).optional(),
+	// Scoping
+	inRef: z.string().optional(),
+	inCss: z.string().optional(),
+	inTag: z.string().optional(),
+	// Filtering
+	tag: z.string().optional(),
+	visible: z.boolean().optional(),
+	enabled: z.boolean().optional(),
+	checked: z.boolean().optional(),
+	tab: tabRefSchema.optional(),
+})
+
+const checkAction = z.object({
+	action: z.literal('check'),
+	ref: z.string().regex(elementRefPattern).optional(),
+	selector: z.string().optional(),
+	tab: tabRefSchema.optional(),
+})
+
+const uncheckAction = z.object({
+	action: z.literal('uncheck'),
+	ref: z.string().regex(elementRefPattern).optional(),
+	selector: z.string().optional(),
+	tab: tabRefSchema.optional(),
+})
+
+const uploadAction = z.object({
+	action: z.literal('upload'),
+	ref: z.string().regex(elementRefPattern).optional(),
+	selector: z.string().optional(),
+	files: z.array(z.string()).min(1),
+	tab: tabRefSchema.optional(),
+})
+
+const dialogAction = z.object({
+	action: z.literal('dialog'),
+	handler: z.enum(['accept', 'dismiss', 'prompt', 'clear']),
+	text: z.string().optional(),
+	tab: tabRefSchema.optional(),
+})
+
 // ============================================================================
 // Wait Actions
 // ============================================================================
@@ -283,7 +348,7 @@ const stepsAction = z.object({
 // Discriminated Union
 // ============================================================================
 
-export const ActionSchema = z.discriminatedUnion('action', [
+const baseActionSchema = z.discriminatedUnion('action', [
 	// Navigation
 	navigateAction,
 	backAction,
@@ -301,6 +366,13 @@ export const ActionSchema = z.discriminatedUnion('action', [
 	hoverAction,
 	focusAction,
 	scrollAction,
+	pressAction,
+	fillAction,
+	findAction,
+	checkAction,
+	uncheckAction,
+	uploadAction,
+	dialogAction,
 	// Wait
 	waitForAction,
 	waitForNavigationAction,
@@ -329,6 +401,18 @@ export const ActionSchema = z.discriminatedUnion('action', [
 	stepsAction,
 ])
 
+// Add cross-field validation for actions that require ref or selector
+export const ActionSchema = baseActionSchema.superRefine((data, ctx) => {
+	if (data.action === 'check' || data.action === 'uncheck') {
+		if (data.ref === undefined && data.selector === undefined) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'Either ref or selector is required',
+			})
+		}
+	}
+})
+
 export type Action = z.infer<typeof ActionSchema>
 
 // Type aliases for specific actions
@@ -338,6 +422,13 @@ export type TypeAction = z.infer<typeof typeAction>
 export type SnapAction = z.infer<typeof snapAction>
 export type MarkerAction = z.infer<typeof markerAction>
 export type ModeAction = z.infer<typeof modeAction>
+export type PressAction = z.infer<typeof pressAction>
+export type FillAction = z.infer<typeof fillAction>
+export type FindAction = z.infer<typeof findAction>
+export type CheckAction = z.infer<typeof checkAction>
+export type UncheckAction = z.infer<typeof uncheckAction>
+export type UploadAction = z.infer<typeof uploadAction>
+export type DialogAction = z.infer<typeof dialogAction>
 
 // Browser mode type (uses 'paired' instead of 'guided')
 export type BrowserMode = 'headless' | 'windowed' | 'paired'
