@@ -7,6 +7,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -287,6 +288,13 @@ export class BrowserManager {
 
 	private canConnect(): Promise<boolean> {
 		const socketPath = getSocketPath(this.session)
+
+		// On Unix, check if socket file exists before attempting connection
+		// This avoids Bun throwing unhandled errors for non-existent sockets
+		if (os.platform() !== 'win32' && !existsSync(socketPath)) {
+			return Promise.resolve(false)
+		}
+
 		return new Promise((resolve) => {
 			const socket = this.createSocket(socketPath)
 			const timeout = setTimeout(() => {
