@@ -9,6 +9,11 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+	CATEGORIES,
+	configureLogging,
+	getLogger,
+} from '@outfitter/navigator-core/logging'
 import { Command } from 'commander'
 import { type ClientOptions, createClient } from './client.js'
 import { registerDisplayCommands } from './commands/display.js'
@@ -58,6 +63,7 @@ program
 	.option('-s, --session <id>', 'Use specific session')
 	.option('-p, --project <path>', 'Project root path')
 	.option('--port <number>', 'Server port (default: 9334)')
+	.option('-d, --debug', 'Enable verbose debug logging')
 
 // ============================================================================
 // Client Factory
@@ -234,11 +240,37 @@ program
 	})
 
 // ============================================================================
+// Logging Setup
+// ============================================================================
+
+/**
+ * Initialize logging if --debug flag is set.
+ * Called before each command via preAction hook.
+ */
+let loggingInitialized = false
+async function initializeLogging(): Promise<void> {
+	if (loggingInitialized) return
+
+	const opts = program.opts<{ debug?: boolean }>()
+	if (opts.debug) {
+		await configureLogging({
+			environment: 'development',
+			level: 'debug',
+		})
+		const logger = getLogger(CATEGORIES.CLI)
+		logger.debug`CLI debug logging enabled`
+	}
+	loggingInitialized = true
+}
+
+// ============================================================================
 // Error Handling
 // ============================================================================
 
-program.hook('preAction', () => {
-	// Set up error handler for async actions
+program.hook('preAction', async (_thisCommand, actionCommand) => {
+	// Skip CLI logging for mcp command - it configures its own logging
+	if (actionCommand.name() === 'mcp') return
+	await initializeLogging()
 })
 
 // Handle errors from async actions

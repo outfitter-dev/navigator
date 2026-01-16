@@ -5,8 +5,11 @@
  */
 
 import { loadConfig } from '@outfitter/navigator-core/config'
+import { CATEGORIES, getLogger } from '@outfitter/navigator-core/logging'
 import { detectProjectRoot } from '@outfitter/navigator-core/project'
 import { type Action, ActionSchema } from '@outfitter/navigator-core/schema'
+
+const logger = getLogger(CATEGORIES.CLI_COMMANDS)
 
 // ============================================================================
 // Types
@@ -42,6 +45,8 @@ export function createClient(options: ClientOptions = {}): NavigatorClient {
 	const serverUrl = `http://localhost:${port}`
 	const projectPath = options.project ?? detectProjectRoot() ?? process.cwd()
 
+	logger.debug`Creating client: server=${serverUrl} project=${projectPath}`
+
 	return {
 		serverUrl,
 		projectPath,
@@ -49,6 +54,7 @@ export function createClient(options: ClientOptions = {}): NavigatorClient {
 		async execute<T = unknown>(action: Action): Promise<T> {
 			// Validate action before sending
 			const validated = ActionSchema.parse(action)
+			logger.debug`Executing action: ${validated.action}`
 
 			const response = await fetch(`${serverUrl}/action`, {
 				method: 'POST',
