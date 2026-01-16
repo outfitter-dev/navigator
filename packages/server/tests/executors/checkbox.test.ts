@@ -13,6 +13,7 @@ import {
 	MockSessionManager,
 	createDefaultHandler,
 	createTestConfig,
+	simulateSnapshot,
 } from '../helpers/mock-managers'
 
 describe('check/uncheck action executors', () => {
@@ -21,7 +22,7 @@ describe('check/uncheck action executors', () => {
 	let pairedManager: MockPairedManager
 	let sessionManager: MockSessionManager
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		browserManager = new MockBrowserManager()
 		pairedManager = new MockPairedManager()
 		sessionManager = new MockSessionManager()
@@ -33,6 +34,9 @@ describe('check/uncheck action executors', () => {
 			sessionManager as unknown as Parameters<typeof ActionExecutor>[2],
 			createTestConfig(),
 		)
+
+		// Simulate taking a snapshot to enable element ref validation
+		await simulateSnapshot(executor)
 	})
 
 	describe('check action', () => {

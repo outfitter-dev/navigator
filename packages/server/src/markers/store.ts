@@ -149,7 +149,10 @@ export class MarkerStore {
 				}
 			}
 			// Fallback: check for legacy inline screenshot (pre-refactor markers)
-			if (typeof rawJson.screenshot === 'string' && rawJson.screenshot.length > 0) {
+			if (
+				typeof rawJson.screenshot === 'string' &&
+				rawJson.screenshot.length > 0
+			) {
 				log.debug`Marker retrieved with legacy inline screenshot ${{ id: markerId }}`
 				return { ...marker, screenshot: rawJson.screenshot }
 			}

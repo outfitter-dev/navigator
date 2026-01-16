@@ -192,6 +192,14 @@ export class MockPairedManager {
 		return this.executeHandler(action)
 	}
 
+	broadcastActionStart(): void {
+		// No-op for mock
+	}
+
+	broadcastActionEnd(): void {
+		// No-op for mock
+	}
+
 	handleOpen(): void {
 		// No-op for mock
 	}
@@ -319,8 +327,14 @@ export function createActionHandler(
 
 /**
  * Create a default handler that succeeds for common actions.
+ *
+ * @param options.interactiveCount - Number of interactive elements to return in snapshot (default: 1000)
  */
-export function createDefaultHandler(): SendHandler {
+export function createDefaultHandler(options?: {
+	interactiveCount?: number
+}): SendHandler {
+	const interactiveCount = options?.interactiveCount ?? 1000
+
 	return (command) => {
 		const action = command.action as string
 
@@ -364,8 +378,34 @@ export function createDefaultHandler(): SendHandler {
 			case 'evaluate':
 				return { success: true, data: { result: [] } }
 
+			case 'snapshot': {
+				// Build mock refs for the specified count
+				const refs: Record<string, unknown> = {}
+				for (let i = 1; i <= interactiveCount; i++) {
+					refs[String(i)] = { tag: 'button', text: `Element ${i}` }
+				}
+				return {
+					success: true,
+					data: {
+						snapshot: '<html><body>Mock snapshot</body></html>',
+						refs,
+					},
+				}
+			}
+
 			default:
 				return { success: true }
 		}
 	}
+}
+
+/**
+ * Helper to simulate taking a snapshot for testing.
+ * This sets the lastInteractiveCount in the executor.
+ */
+export async function simulateSnapshot(
+	executor: { execute: (action: { action: 'snap' }) => Promise<unknown> },
+	_count = 100,
+): Promise<void> {
+	await executor.execute({ action: 'snap' })
 }

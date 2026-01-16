@@ -141,7 +141,9 @@ export function loadConfig(): Config {
 		// If parsing fails, return defaults but always notify the user
 		// Write to stderr directly since logging may not be configured yet
 		const message = error instanceof Error ? error.message : String(error)
-		console.error(`[navigator] Warning: Failed to parse config at ${configPath}: ${message}`)
+		console.error(
+			`[navigator] Warning: Failed to parse config at ${configPath}: ${message}`,
+		)
 		console.error('[navigator] Using default configuration')
 		log.warning`Failed to parse config at ${configPath}: ${error}`
 		return ConfigSchema.parse({})

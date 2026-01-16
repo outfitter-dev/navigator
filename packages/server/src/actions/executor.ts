@@ -85,6 +85,8 @@ export class ActionExecutor {
 	private markerStore: MarkerStore | null = null
 	private stepLogger: StepLogger | null = null
 	private currentProjectRoot: string | null = null
+	private hasSnapshot = false
+	private lastInteractiveCount = 0
 
 	constructor(
 		private readonly browserManager: BrowserManager,
@@ -262,6 +264,9 @@ export class ActionExecutor {
 			this.currentProjectRoot = effectiveProjectRoot
 			this.markerStore = new MarkerStore(effectiveProjectRoot, session.id)
 			this.stepLogger = new StepLogger(effectiveProjectRoot, session.id)
+			// Reset snapshot state when project root changes
+			this.hasSnapshot = false
+			this.lastInteractiveCount = 0
 		}
 
 		const start = Date.now()
@@ -698,12 +703,53 @@ export class ActionExecutor {
 			)
 		}
 
+		// Pre-validate element ref before sending to agent-browser
+		if (ref) {
+			const validation = this.validateElementRef(ref)
+			if (!validation.valid) {
+				return this.createElementRefError(ref)
+			}
+		}
+
 		const response = await this.sendCommand(
 			{ action: 'click', selector: target, button, clickCount },
 			tab,
 		)
 		if (!response.success) {
-			return { success: false, error: response.error ?? 'Click failed' }
+			const errorMsg = response.error ?? 'Click failed'
+			const lowerError = errorMsg.toLowerCase()
+
+			let errorCode: ErrorCode = ErrorCode.ELEMENT_NOT_FOUND
+			let retryable = true
+			let recovery = 'Take a fresh snap to get updated element references'
+
+			if (lowerError.includes('not visible') || lowerError.includes('hidden')) {
+				errorCode = ErrorCode.ELEMENT_NOT_VISIBLE
+				recovery =
+					'Element exists but is hidden - wait for visibility or scroll into view'
+			} else if (
+				lowerError.includes('not interactable') ||
+				lowerError.includes('pointer events')
+			) {
+				errorCode = ErrorCode.ELEMENT_NOT_INTERACTABLE
+				recovery =
+					'Element is covered or disabled - wait or click covering element first'
+			} else if (
+				lowerError.includes('stale') ||
+				lowerError.includes('detached')
+			) {
+				errorCode = ErrorCode.STALE_REF
+				recovery = 'Element was removed from DOM - take a new snap and retry'
+			} else if (
+				lowerError.includes('invalid selector') ||
+				lowerError.includes('syntax error')
+			) {
+				errorCode = ErrorCode.SELECTOR_INVALID
+				retryable = false
+				recovery = 'Check selector syntax - use CSS or ref from snap'
+			}
+
+			return createError(errorMsg, errorCode, retryable, recovery)
 		}
 		return { success: true }
 	}
@@ -726,12 +772,53 @@ export class ActionExecutor {
 			)
 		}
 
+		// Pre-validate element ref before sending to agent-browser
+		if (ref) {
+			const validation = this.validateElementRef(ref)
+			if (!validation.valid) {
+				return this.createElementRefError(ref)
+			}
+		}
+
 		const response = await this.sendCommand(
 			{ action: 'type', selector: target, text, clear, delay },
 			tab,
 		)
 		if (!response.success) {
-			return { success: false, error: response.error ?? 'Type failed' }
+			const errorMsg = response.error ?? 'Type failed'
+			const lowerError = errorMsg.toLowerCase()
+
+			let errorCode: ErrorCode = ErrorCode.ELEMENT_NOT_FOUND
+			let retryable = true
+			let recovery = 'Take a fresh snap to get updated element references'
+
+			if (lowerError.includes('not visible') || lowerError.includes('hidden')) {
+				errorCode = ErrorCode.ELEMENT_NOT_VISIBLE
+				recovery =
+					'Element exists but is hidden - wait for visibility or scroll into view'
+			} else if (
+				lowerError.includes('not interactable') ||
+				lowerError.includes('pointer events')
+			) {
+				errorCode = ErrorCode.ELEMENT_NOT_INTERACTABLE
+				recovery =
+					'Element is covered or disabled - wait or click covering element first'
+			} else if (
+				lowerError.includes('stale') ||
+				lowerError.includes('detached')
+			) {
+				errorCode = ErrorCode.STALE_REF
+				recovery = 'Element was removed from DOM - take a new snap and retry'
+			} else if (
+				lowerError.includes('invalid selector') ||
+				lowerError.includes('syntax error')
+			) {
+				errorCode = ErrorCode.SELECTOR_INVALID
+				retryable = false
+				recovery = 'Check selector syntax - use CSS or ref from snap'
+			}
+
+			return createError(errorMsg, errorCode, retryable, recovery)
 		}
 		return { success: true }
 	}
@@ -752,12 +839,53 @@ export class ActionExecutor {
 			)
 		}
 
+		// Pre-validate element ref before sending to agent-browser
+		if (ref) {
+			const validation = this.validateElementRef(ref)
+			if (!validation.valid) {
+				return this.createElementRefError(ref)
+			}
+		}
+
 		const response = await this.sendCommand(
 			{ action: 'select', selector: target, values: value },
 			tab,
 		)
 		if (!response.success) {
-			return { success: false, error: response.error ?? 'Select failed' }
+			const errorMsg = response.error ?? 'Select failed'
+			const lowerError = errorMsg.toLowerCase()
+
+			let errorCode: ErrorCode = ErrorCode.ELEMENT_NOT_FOUND
+			let retryable = true
+			let recovery = 'Take a fresh snap to get updated element references'
+
+			if (lowerError.includes('not visible') || lowerError.includes('hidden')) {
+				errorCode = ErrorCode.ELEMENT_NOT_VISIBLE
+				recovery =
+					'Element exists but is hidden - wait for visibility or scroll into view'
+			} else if (
+				lowerError.includes('not interactable') ||
+				lowerError.includes('pointer events')
+			) {
+				errorCode = ErrorCode.ELEMENT_NOT_INTERACTABLE
+				recovery =
+					'Element is covered or disabled - wait or click covering element first'
+			} else if (
+				lowerError.includes('stale') ||
+				lowerError.includes('detached')
+			) {
+				errorCode = ErrorCode.STALE_REF
+				recovery = 'Element was removed from DOM - take a new snap and retry'
+			} else if (
+				lowerError.includes('invalid selector') ||
+				lowerError.includes('syntax error')
+			) {
+				errorCode = ErrorCode.SELECTOR_INVALID
+				retryable = false
+				recovery = 'Check selector syntax - use CSS or ref from snap'
+			}
+
+			return createError(errorMsg, errorCode, retryable, recovery)
 		}
 		return { success: true }
 	}
@@ -777,12 +905,53 @@ export class ActionExecutor {
 			)
 		}
 
+		// Pre-validate element ref before sending to agent-browser
+		if (ref) {
+			const validation = this.validateElementRef(ref)
+			if (!validation.valid) {
+				return this.createElementRefError(ref)
+			}
+		}
+
 		const response = await this.sendCommand(
 			{ action: 'hover', selector: target },
 			tab,
 		)
 		if (!response.success) {
-			return { success: false, error: response.error ?? 'Hover failed' }
+			const errorMsg = response.error ?? 'Hover failed'
+			const lowerError = errorMsg.toLowerCase()
+
+			let errorCode: ErrorCode = ErrorCode.ELEMENT_NOT_FOUND
+			let retryable = true
+			let recovery = 'Take a fresh snap to get updated element references'
+
+			if (lowerError.includes('not visible') || lowerError.includes('hidden')) {
+				errorCode = ErrorCode.ELEMENT_NOT_VISIBLE
+				recovery =
+					'Element exists but is hidden - wait for visibility or scroll into view'
+			} else if (
+				lowerError.includes('not interactable') ||
+				lowerError.includes('pointer events')
+			) {
+				errorCode = ErrorCode.ELEMENT_NOT_INTERACTABLE
+				recovery =
+					'Element is covered or disabled - wait or click covering element first'
+			} else if (
+				lowerError.includes('stale') ||
+				lowerError.includes('detached')
+			) {
+				errorCode = ErrorCode.STALE_REF
+				recovery = 'Element was removed from DOM - take a new snap and retry'
+			} else if (
+				lowerError.includes('invalid selector') ||
+				lowerError.includes('syntax error')
+			) {
+				errorCode = ErrorCode.SELECTOR_INVALID
+				retryable = false
+				recovery = 'Check selector syntax - use CSS or ref from snap'
+			}
+
+			return createError(errorMsg, errorCode, retryable, recovery)
 		}
 		return { success: true }
 	}
@@ -802,12 +971,53 @@ export class ActionExecutor {
 			)
 		}
 
+		// Pre-validate element ref before sending to agent-browser
+		if (ref) {
+			const validation = this.validateElementRef(ref)
+			if (!validation.valid) {
+				return this.createElementRefError(ref)
+			}
+		}
+
 		const response = await this.sendCommand(
 			{ action: 'focus', selector: target },
 			tab,
 		)
 		if (!response.success) {
-			return { success: false, error: response.error ?? 'Focus failed' }
+			const errorMsg = response.error ?? 'Focus failed'
+			const lowerError = errorMsg.toLowerCase()
+
+			let errorCode: ErrorCode = ErrorCode.ELEMENT_NOT_FOUND
+			let retryable = true
+			let recovery = 'Take a fresh snap to get updated element references'
+
+			if (lowerError.includes('not visible') || lowerError.includes('hidden')) {
+				errorCode = ErrorCode.ELEMENT_NOT_VISIBLE
+				recovery =
+					'Element exists but is hidden - wait for visibility or scroll into view'
+			} else if (
+				lowerError.includes('not interactable') ||
+				lowerError.includes('pointer events')
+			) {
+				errorCode = ErrorCode.ELEMENT_NOT_INTERACTABLE
+				recovery =
+					'Element is covered or disabled - wait or click covering element first'
+			} else if (
+				lowerError.includes('stale') ||
+				lowerError.includes('detached')
+			) {
+				errorCode = ErrorCode.STALE_REF
+				recovery = 'Element was removed from DOM - take a new snap and retry'
+			} else if (
+				lowerError.includes('invalid selector') ||
+				lowerError.includes('syntax error')
+			) {
+				errorCode = ErrorCode.SELECTOR_INVALID
+				retryable = false
+				recovery = 'Check selector syntax - use CSS or ref from snap'
+			}
+
+			return createError(errorMsg, errorCode, retryable, recovery)
 		}
 		return { success: true }
 	}
@@ -866,12 +1076,53 @@ export class ActionExecutor {
 			)
 		}
 
+		// Pre-validate element ref before sending to agent-browser
+		if (ref) {
+			const validation = this.validateElementRef(ref)
+			if (!validation.valid) {
+				return this.createElementRefError(ref)
+			}
+		}
+
 		const response = await this.sendCommand(
 			{ action: 'fill', selector: target, value },
 			tab,
 		)
 		if (!response.success) {
-			return { success: false, error: response.error ?? 'Fill failed' }
+			const errorMsg = response.error ?? 'Fill failed'
+			const lowerError = errorMsg.toLowerCase()
+
+			let errorCode: ErrorCode = ErrorCode.ELEMENT_NOT_FOUND
+			let retryable = true
+			let recovery = 'Take a fresh snap to get updated element references'
+
+			if (lowerError.includes('not visible') || lowerError.includes('hidden')) {
+				errorCode = ErrorCode.ELEMENT_NOT_VISIBLE
+				recovery =
+					'Element exists but is hidden - wait for visibility or scroll into view'
+			} else if (
+				lowerError.includes('not interactable') ||
+				lowerError.includes('pointer events')
+			) {
+				errorCode = ErrorCode.ELEMENT_NOT_INTERACTABLE
+				recovery =
+					'Element is covered or disabled - wait or click covering element first'
+			} else if (
+				lowerError.includes('stale') ||
+				lowerError.includes('detached')
+			) {
+				errorCode = ErrorCode.STALE_REF
+				recovery = 'Element was removed from DOM - take a new snap and retry'
+			} else if (
+				lowerError.includes('invalid selector') ||
+				lowerError.includes('syntax error')
+			) {
+				errorCode = ErrorCode.SELECTOR_INVALID
+				retryable = false
+				recovery = 'Check selector syntax - use CSS or ref from snap'
+			}
+
+			return createError(errorMsg, errorCode, retryable, recovery)
 		}
 		return { success: true }
 	}
@@ -1080,6 +1331,14 @@ export class ActionExecutor {
 			)
 		}
 
+		// Pre-validate element ref before sending to agent-browser
+		if (ref) {
+			const validation = this.validateElementRef(ref)
+			if (!validation.valid) {
+				return this.createElementRefError(ref)
+			}
+		}
+
 		const response = await this.sendCommand(
 			{ action: 'check', selector: target },
 			tab,
@@ -1103,6 +1362,14 @@ export class ActionExecutor {
 				false,
 				'Provide ref from snap (e.g., "e42") or CSS selector',
 			)
+		}
+
+		// Pre-validate element ref before sending to agent-browser
+		if (ref) {
+			const validation = this.validateElementRef(ref)
+			if (!validation.valid) {
+				return this.createElementRefError(ref)
+			}
 		}
 
 		const response = await this.sendCommand(
@@ -1129,6 +1396,14 @@ export class ActionExecutor {
 				false,
 				'Provide ref from snap (e.g., "e42") or CSS selector',
 			)
+		}
+
+		// Pre-validate element ref before sending to agent-browser
+		if (ref) {
+			const validation = this.validateElementRef(ref)
+			if (!validation.valid) {
+				return this.createElementRefError(ref)
+			}
 		}
 
 		const response = await this.sendCommand(
@@ -1183,7 +1458,8 @@ export class ActionExecutor {
 			tab,
 		)
 		if (!response.success) {
-			const errorMsg = response.error ?? `Timeout waiting for element to be ${state}`
+			const errorMsg =
+				response.error ?? `Timeout waiting for element to be ${state}`
 			const lowerError = errorMsg.toLowerCase()
 
 			// Determine appropriate error code based on error message
@@ -1191,11 +1467,17 @@ export class ActionExecutor {
 			let retryable = true
 			let recovery = 'Increase timeout or verify element exists with snap'
 
-			if (lowerError.includes('invalid selector') || lowerError.includes('syntax error')) {
+			if (
+				lowerError.includes('invalid selector') ||
+				lowerError.includes('syntax error')
+			) {
 				errorCode = ErrorCode.SELECTOR_INVALID
 				retryable = false
 				recovery = 'Check selector syntax - use CSS or ref from snap'
-			} else if (lowerError.includes('stale') || lowerError.includes('detached')) {
+			} else if (
+				lowerError.includes('stale') ||
+				lowerError.includes('detached')
+			) {
 				errorCode = ErrorCode.STALE_REF
 				retryable = true
 				recovery = 'Element was removed from DOM - take a new snap and retry'
@@ -1325,6 +1607,7 @@ export class ActionExecutor {
 			selector: 'body',
 		})
 		const text = textResult.success ? (textResult.data?.text ?? '') : ''
+		this.hasSnapshot = true
 		this.browserManager.incrementSnapshotVersion()
 		return {
 			success: true,
@@ -1375,6 +1658,11 @@ export class ActionExecutor {
 			version,
 		)
 		const refs = response.data.refs ?? {}
+		const interactiveCount = Object.keys(refs).length
+
+		// Store for element ref validation
+		this.hasSnapshot = true
+		this.lastInteractiveCount = interactiveCount
 
 		this.browserManager.incrementSnapshotVersion()
 		return {
@@ -1386,7 +1674,7 @@ export class ActionExecutor {
 				title,
 				tree: snapshotText,
 				mode: mode ?? 'full',
-				interactiveCount: Object.keys(refs).length,
+				interactiveCount,
 			},
 		}
 	}
@@ -2111,6 +2399,49 @@ export class ActionExecutor {
 		}
 		if (selector) return selector
 		return null
+	}
+
+	/**
+	 * Validate an element reference against the last snapshot.
+	 *
+	 * @param ref - Element reference (e.g., "@e42", "e42")
+	 * @returns Object with valid flag and parsed index
+	 */
+	private validateElementRef(ref: string): { valid: boolean; index: number } {
+		const match = ref.match(/^@?e(\d+)/)
+		if (!match?.[1]) return { valid: false, index: -1 }
+		const index = Number.parseInt(match[1], 10)
+
+		// If no snapshot taken yet, validation fails
+		if (!this.hasSnapshot) return { valid: false, index }
+
+		// If snapshot was taken but has 0 interactive elements (e.g., text_only mode),
+		// skip validation and let the action proceed to browser level
+		if (this.lastInteractiveCount === 0) return { valid: true, index }
+
+		// Element refs are 1-indexed, so valid range is 1 to interactiveCount
+		const valid = index >= 1 && index <= this.lastInteractiveCount
+		return { valid, index }
+	}
+
+	/**
+	 * Create an error result for invalid element references.
+	 */
+	private createElementRefError(ref: string): ActionResult {
+		if (!this.hasSnapshot) {
+			return createError(
+				`Cannot interact with ${ref}: no snapshot taken yet. Run snap first.`,
+				ErrorCode.ELEMENT_NOT_FOUND,
+				true,
+				'Take a snap first to discover interactive elements',
+			)
+		}
+		return createError(
+			`Element ${ref} not found. Last snap had ${this.lastInteractiveCount} interactive elements (e1-e${this.lastInteractiveCount}).`,
+			ErrorCode.ELEMENT_NOT_FOUND,
+			true,
+			'Take a fresh snap to get updated element references',
+		)
 	}
 
 	/**
