@@ -259,11 +259,47 @@ test_schema_validation() {
   setup_output "schema-validation"
   log "Running schema-validation tests..."
 
-  # TODO: Add schema validation tests
-  # - Missing required 'action' field
-  # - Invalid action type
-  # - Invalid parameter types
-  # - Unknown parameters
+  # Test 1: Missing action field
+  run_mcp_test 1 "Missing action field" \
+    '{}' \
+    "" \
+    true
+
+  # Test 2: Unknown action type
+  run_mcp_test 2 "Unknown action type" \
+    '{"action":"invalid"}' \
+    "" \
+    true
+
+  # Test 3: Missing required param (navigate needs url)
+  run_mcp_test 3 "Missing required param (navigate needs url)" \
+    '{"action":"navigate"}' \
+    "" \
+    true
+
+  # Test 4: Missing required param (tab needs ref)
+  run_mcp_test 4 "Missing required param (tab needs ref)" \
+    '{"action":"tab"}' \
+    "" \
+    true
+
+  # Test 5: Type mismatch (wait ms should be number)
+  run_mcp_test 5 "Type mismatch (wait ms should be number)" \
+    '{"action":"wait","ms":"string"}' \
+    "" \
+    true
+
+  # Test 6: Valid minimal action
+  run_mcp_test 6 "Valid minimal action" \
+    '{"action":"snap"}' \
+    "" \
+    false
+
+  # Test 7: Valid action with params
+  run_mcp_test 7 "Valid action with params" \
+    '{"action":"wait","ms":100}' \
+    "" \
+    false
 
   finalize_results $PASSED $WARNED $FAILED $TOTAL
 
