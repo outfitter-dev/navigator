@@ -75,6 +75,7 @@
       },
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.4.0",
+        "@outfitter/navigator-core": "workspace:*",
         "zod": "^3.24.1",
       },
       "devDependencies": {
