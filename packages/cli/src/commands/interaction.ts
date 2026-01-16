@@ -13,6 +13,36 @@ import type { NavigatorClient } from '../client.js'
 /** Matches element refs like e42 or e42_1 or @e42 */
 const ELEMENT_REF_REGEX = /^@?e\d+(?:_\d+)?$/
 
+/** Snap result with optional multi-viewport data */
+interface SnapResult {
+	tree?: string
+	elements?: unknown
+	snaps?: Array<{ viewport: string; result: { tree?: string } }>
+	data?: {
+		snaps?: Array<{ viewport: string; result: { tree?: string } }>
+	}
+}
+
+/**
+ * Output snap result to console, handling multi-viewport and single results.
+ */
+function outputSnapResult(result: SnapResult): void {
+	const snaps = result.data?.snaps ?? result.snaps
+	if (snaps && snaps.length > 0) {
+		for (const { viewport, result: snapResult } of snaps) {
+			console.log(`\n=== Viewport: ${viewport} ===\n`)
+			const output = snapResult.tree ?? JSON.stringify(snapResult, null, 2)
+			console.log(output)
+		}
+		return
+	}
+	if (result.tree) {
+		console.log(result.tree)
+		return
+	}
+	console.log(JSON.stringify(result, null, 2))
+}
+
 /** Options for the find command */
 interface FindOptions {
 	role?: string
@@ -88,14 +118,7 @@ export function registerInteractionCommands(
 		)
 		.action(async (options) => {
 			const client = getClient()
-			const result = await client.execute<{
-				tree?: string
-				elements?: unknown
-				snaps?: Array<{ viewport: string; result: { tree?: string } }>
-				data?: {
-					snaps?: Array<{ viewport: string; result: { tree?: string } }>
-				}
-			}>({
+			const result = await client.execute<SnapResult>({
 				action: 'snap',
 				interactive: options.interactive,
 				visibleOnly: options.visible,
@@ -104,23 +127,7 @@ export function registerInteractionCommands(
 				selector: options.selector,
 				view: options.view,
 			})
-
-			// Handle multi-viewport result (server returns data under result.data)
-			const snaps = result.data?.snaps ?? result.snaps
-			if (snaps && snaps.length > 0) {
-				for (const { viewport, result: snapResult } of snaps) {
-					console.log(`\n=== Viewport: ${viewport} ===\n`)
-					if (snapResult.tree) {
-						console.log(snapResult.tree)
-					} else {
-						console.log(JSON.stringify(snapResult, null, 2))
-					}
-				}
-			} else if (result.tree) {
-				console.log(result.tree)
-			} else {
-				console.log(JSON.stringify(result, null, 2))
-			}
+			outputSnapResult(result)
 		})
 
 	// nav click <ref|selector>
