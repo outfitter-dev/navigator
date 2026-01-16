@@ -121,6 +121,34 @@ export class PairedManager {
 	}
 
 	/**
+	 * Broadcast an agent action start event to all connected extensions.
+	 * Used to show the agent control halo in the extension.
+	 */
+	broadcastActionStart(): void {
+		if (!this.isConnected()) return
+		this.broadcast({ type: 'action:start' })
+	}
+
+	/**
+	 * Broadcast an agent action end event to all connected extensions.
+	 * Used to hide the agent control halo in the extension.
+	 */
+	broadcastActionEnd(): void {
+		if (!this.isConnected()) return
+		this.broadcast({ type: 'action:end' })
+	}
+
+	/**
+	 * Broadcast a message to all connected extension sockets.
+	 */
+	private broadcast(message: Record<string, unknown>): void {
+		const data = JSON.stringify(message)
+		for (const socket of this.sockets) {
+			socket.send(data)
+		}
+	}
+
+	/**
 	 * Handle incoming websocket messages from the extension.
 	 */
 	handleMessage(_socket: PairedSocket, message: string | Uint8Array): void {
