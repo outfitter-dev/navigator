@@ -12,6 +12,8 @@ let userActionListenersActive = false
 let startPoint: { x: number; y: number } | null = null
 let overlay: HTMLDivElement | null = null
 let modeIndicator: HTMLDivElement | null = null
+let agentControlActive = false
+let agentHalo: HTMLDivElement | null = null
 
 // Geometry types
 interface PointGeometry {
@@ -142,6 +144,9 @@ function handleUserClick(event: MouseEvent): void {
 	if (target?.hasAttribute?.('data-navigator-overlay')) return
 	if (markerMode) return
 
+	// User took control - hide agent halo
+	hideAgentHalo()
+
 	const selector = target ? getSelector(target) : undefined
 	sendUserActionEvent({
 		type: 'userAction',
@@ -159,6 +164,9 @@ function handleUserInput(event: Event): void {
 	const target = event.target as HTMLElement
 	if (!target) return
 
+	// User took control - hide agent halo
+	hideAgentHalo()
+
 	const selector = getSelector(target)
 	sendUserActionEvent({
 		type: 'userAction',
@@ -174,6 +182,10 @@ function handleUserInput(event: Event): void {
 let scrollTimeout: ReturnType<typeof setTimeout> | null = null
 function handleUserScroll(event: Event): void {
 	if (!event.isTrusted) return
+
+	// User took control - hide agent halo immediately (no debounce)
+	hideAgentHalo()
+
 	if (scrollTimeout) return
 	scrollTimeout = setTimeout(() => {
 		sendUserActionEvent({
@@ -352,6 +364,34 @@ function showModeIndicator(): void {
 function hideModeIndicator(): void {
 	modeIndicator?.remove()
 	modeIndicator = null
+}
+
+// ============================================================================
+// Agent Control Halo (for paired mode)
+// ============================================================================
+
+/**
+ * Show agent control halo - indicates agent is executing an action
+ */
+function showAgentHalo(): void {
+	if (agentHalo) return
+
+	agentControlActive = true
+	agentHalo = document.createElement('div')
+	agentHalo.setAttribute('data-navigator-overlay', 'agent-control')
+	agentHalo.className = 'navigator-agent-control'
+	document.body.appendChild(agentHalo)
+}
+
+/**
+ * Hide agent control halo - agent action completed or user took control
+ */
+function hideAgentHalo(): void {
+	if (!agentHalo) return
+
+	agentControlActive = false
+	agentHalo.remove()
+	agentHalo = null
 }
 
 /**
@@ -720,6 +760,7 @@ chrome.runtime.onMessage.addListener(
 
 			case 'navigator:disablePairedMode':
 				disableUserActionListeners()
+				hideAgentHalo() // Clear any active halo on disable
 				sendResponse({ success: true })
 				break
 
@@ -728,7 +769,18 @@ chrome.runtime.onMessage.addListener(
 					enableUserActionListeners()
 				} else {
 					disableUserActionListeners()
+					hideAgentHalo() // Clear any active halo when paired mode is off
 				}
+				sendResponse({ success: true })
+				break
+
+			case 'navigator:agentActionStart':
+				showAgentHalo()
+				sendResponse({ success: true })
+				break
+
+			case 'navigator:agentActionEnd':
+				hideAgentHalo()
 				sendResponse({ success: true })
 				break
 		}

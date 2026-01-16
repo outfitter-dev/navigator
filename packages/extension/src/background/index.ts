@@ -156,6 +156,16 @@ function handleServerMessage(message: ServerMessage): void {
 			}
 			break
 		}
+
+		case 'action:start':
+			// Agent started executing an action - show halo
+			notifyContentScripts({ type: 'navigator:agentActionStart' })
+			break
+
+		case 'action:end':
+			// Agent finished executing an action - hide halo
+			notifyContentScripts({ type: 'navigator:agentActionEnd' })
+			break
 	}
 }
 

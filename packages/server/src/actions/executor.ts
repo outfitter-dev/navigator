@@ -95,6 +95,11 @@ export class ActionExecutor {
 
 		log.debug`Action received ${{ action: action.action, target }}`
 
+		// Notify extension of agent action start (for visual indicator)
+		if (this.isPairedActive()) {
+			this.pairedManager.broadcastActionStart()
+		}
+
 		// Broadcast action start
 		this.broadcastEvent({
 			ts: new Date().toISOString(),
@@ -120,6 +125,11 @@ export class ActionExecutor {
 		}
 
 		const duration = Date.now() - start
+
+		// Notify extension of agent action end (to hide visual indicator)
+		if (this.isPairedActive()) {
+			this.pairedManager.broadcastActionEnd()
+		}
 
 		if (result.success) {
 			log.debug`Action completed ${{ action: action.action, duration }}`
