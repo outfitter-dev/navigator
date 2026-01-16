@@ -7,6 +7,7 @@
  * @module navigator-server
  */
 
+import { honoLogger } from '@logtape/hono'
 import {
 	type Action,
 	type ActionResult,
@@ -20,7 +21,6 @@ import {
 } from '@outfitter/navigator-core/logging'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { logger } from 'hono/logger'
 import { ActionExecutor } from './actions/executor'
 import { BrowserManager } from './browser/manager'
 import { PairedManager } from './paired/manager'
@@ -85,7 +85,7 @@ const app = new Hono()
 
 // Middleware
 app.use('*', cors())
-app.use('*', logger())
+app.use('*', honoLogger())
 
 // Health check
 app.get('/health', (c) => {

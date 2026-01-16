@@ -123,6 +123,7 @@ export function createDevConsoleSink(): Sink {
 		levelStyle: 'bold',
 		categoryStyle: 'dim',
 		levelColors: {
+			trace: null,
 			debug: 'cyan',
 			info: 'green',
 			warning: 'yellow',
