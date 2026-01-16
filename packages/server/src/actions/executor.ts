@@ -13,6 +13,7 @@ import type {
 	ColorScheme,
 	FindAction,
 	Geometry,
+	LocatorStrategy,
 	MarkerViewport,
 	NavigatorConfig,
 	TabRef,
@@ -92,6 +93,152 @@ export class ActionExecutor {
 		_config: NavigatorConfig,
 	) {}
 
+	// ============================================================================
+	// Locator Extraction
+	// ============================================================================
+
+	/**
+	 * Extract a locator strategy from an element reference.
+	 *
+	 * Queries the element for stable identifiers in priority order:
+	 * 1. data-testid (most stable)
+	 * 2. ARIA role with accessible name
+	 * 3. Associated label
+	 * 4. CSS selector fallback
+	 */
+	private async extractLocator(
+		ref: string | undefined,
+		selector: string | undefined,
+		tab?: TabRef,
+	): Promise<LocatorStrategy | undefined> {
+		// Don't extract in paired mode (no agent-browser)
+		if (this.isPairedActive()) return undefined
+
+		// Build target selector
+		const target = this.resolveSelector(ref, selector)
+		if (!target) return undefined
+
+		const script = `
+			(selector) => {
+				// Find element - agent-browser uses @e{index} format for refs
+				let el
+				if (selector.startsWith('@e')) {
+					const refIndex = selector.slice(2)
+					el = document.querySelector('[data-ref="' + refIndex + '"]')
+				} else {
+					el = document.querySelector(selector)
+				}
+				if (!el) return null
+
+				// Priority 1: data-testid
+				const testid = el.getAttribute('data-testid')
+				if (testid) {
+					return { strategy: 'testid', testid }
+				}
+
+				// Priority 2: ARIA role with accessible name
+				const role = el.getAttribute('role') || el.tagName.toLowerCase()
+				const ariaLabel = el.getAttribute('aria-label')
+				const ariaLabelledBy = el.getAttribute('aria-labelledby')
+				let accessibleName = ariaLabel
+
+				if (!accessibleName && ariaLabelledBy) {
+					const labelEl = document.getElementById(ariaLabelledBy)
+					if (labelEl) {
+						accessibleName = labelEl.textContent?.trim()
+					}
+				}
+
+				// For certain elements, use inner text as name
+				if (!accessibleName) {
+					const tagName = el.tagName.toLowerCase()
+					if (['button', 'a', 'label'].includes(tagName)) {
+						accessibleName = el.textContent?.trim().slice(0, 100)
+					}
+				}
+
+				// If we have a meaningful role and name, use role strategy
+				const meaningfulRoles = ['button', 'link', 'textbox', 'checkbox',
+					'radio', 'combobox', 'listbox', 'menu', 'menuitem', 'tab',
+					'tabpanel', 'dialog', 'alert', 'heading', 'img', 'navigation']
+				const implicitRoles = {
+					button: 'button',
+					a: 'link',
+					input: el.type === 'checkbox' ? 'checkbox' :
+								 el.type === 'radio' ? 'radio' :
+								 el.type === 'text' || el.type === 'email' ||
+								 el.type === 'password' || el.type === 'search' ? 'textbox' : null,
+					select: 'combobox',
+					textarea: 'textbox',
+					h1: 'heading', h2: 'heading', h3: 'heading',
+					h4: 'heading', h5: 'heading', h6: 'heading',
+					img: 'img',
+					nav: 'navigation',
+				}
+				const effectiveRole = el.getAttribute('role') ||
+					implicitRoles[el.tagName.toLowerCase()] || null
+
+				if (effectiveRole && meaningfulRoles.includes(effectiveRole)) {
+					if (accessibleName) {
+						return { strategy: 'role', role: effectiveRole, name: accessibleName }
+					}
+				}
+
+				// Priority 3: Associated label (for form elements)
+				// Check this before falling back to role-only, as labels provide more specific targeting
+				const id = el.id
+				if (id) {
+					const label = document.querySelector('label[for="' + id + '"]')
+					if (label) {
+						const labelText = label.textContent?.trim()
+						if (labelText) {
+							return { strategy: 'label', label: labelText }
+						}
+					}
+				}
+
+				// Priority 3b: Role without name (after checking for label)
+				// Less specific than label but still useful for targeting
+				if (effectiveRole && meaningfulRoles.includes(effectiveRole)) {
+					return { strategy: 'role', role: effectiveRole }
+				}
+
+				// Priority 4: Selector fallback
+				// Build a reasonably unique selector
+				const tagName = el.tagName.toLowerCase()
+				if (id) {
+					return { strategy: 'selector', selector: '#' + id }
+				}
+				const className = el.className?.split(' ')
+					.filter(c => c && !c.startsWith('_') && !c.match(/^[a-z]{6,}$/))
+					.slice(0, 2).join('.')
+				if (className) {
+					return { strategy: 'selector', selector: tagName + '.' + className }
+				}
+
+				return { strategy: 'selector', selector: tagName }
+			}
+		`
+
+		try {
+			const response = await this.withTab(tab, async () =>
+				this.browserManager.send<{ result: LocatorStrategy | null }>({
+					action: 'evaluate',
+					script,
+					args: [target],
+				}),
+			)
+
+			if (response.success && response.data?.result) {
+				return response.data.result
+			}
+		} catch {
+			// Ignore extraction errors - locator is optional
+		}
+
+		return undefined
+	}
+
 	/**
 	 * Execute a Navigator action.
 	 *
@@ -136,6 +283,17 @@ export class ActionExecutor {
 			target,
 			status: 'start',
 		})
+
+		// Extract locator BEFORE running action (element may be gone after click/navigate)
+		let locator: LocatorStrategy | undefined
+		const refInfo = this.extractRefFromAction(action)
+		if (refInfo) {
+			locator = await this.extractLocator(
+				refInfo.ref,
+				refInfo.selector,
+				refInfo.tab,
+			)
+		}
 
 		let result: ActionResult
 
@@ -182,6 +340,7 @@ export class ActionExecutor {
 				{ success: result.success, error: result.error, data: result.data },
 				duration,
 				'agent',
+				locator,
 			)
 			await this.sessionManager.touchSession()
 		} catch {
@@ -1952,6 +2111,59 @@ export class ActionExecutor {
 		}
 		if (selector) return selector
 		return null
+	}
+
+	/**
+	 * Extract ref/selector/tab from an action for locator capture.
+	 *
+	 * Returns the targeting info for actions that interact with elements.
+	 * Returns undefined for actions that don't target elements.
+	 */
+	private extractRefFromAction(
+		action: Action,
+	): { ref?: string; selector?: string; tab?: TabRef } | undefined {
+		// Helper to build result with only defined properties
+		const buildResult = (
+			ref: string | undefined,
+			selector: string | undefined,
+			tab: TabRef | undefined,
+		): { ref?: string; selector?: string; tab?: TabRef } => {
+			const result: { ref?: string; selector?: string; tab?: TabRef } = {}
+			if (ref !== undefined) result.ref = ref
+			if (selector !== undefined) result.selector = selector
+			if (tab !== undefined) result.tab = tab
+			return result
+		}
+
+		switch (action.action) {
+			case 'click':
+			case 'type':
+			case 'select':
+			case 'hover':
+			case 'focus':
+			case 'fill':
+			case 'check':
+			case 'uncheck':
+			case 'upload':
+			case 'waitFor':
+				return buildResult(action.ref, action.selector, action.tab)
+			case 'scroll':
+				// scroll uses selector but not ref
+				return action.selector
+					? buildResult(undefined, action.selector, action.tab)
+					: undefined
+			case 'screenshot':
+			case 'text':
+			case 'html':
+				// These can optionally target elements
+				if (action.ref || action.selector) {
+					return buildResult(action.ref, action.selector, action.tab)
+				}
+				return undefined
+			default:
+				// Non-element-targeting actions
+				return undefined
+		}
 	}
 
 	private rewriteSnapshotRefs(tree: string, version: number): string {

@@ -11,6 +11,7 @@ import { existsSync } from 'node:fs'
 import { appendFile, readFile } from 'node:fs/promises'
 import {
 	type Action,
+	type LocatorStrategy,
 	type Step,
 	type StepResult,
 	StepSchema,
@@ -34,6 +35,7 @@ export class StepLogger {
 	 * @param result - The result of the action
 	 * @param duration - Execution time in ms
 	 * @param source - Source of the action ('agent' or 'user')
+	 * @param locator - Optional locator strategy for replay
 	 * @returns The logged step
 	 */
 	async logStep(
@@ -41,6 +43,7 @@ export class StepLogger {
 		result: StepResult,
 		duration: number,
 		source?: StepSource,
+		locator?: LocatorStrategy,
 	): Promise<Step> {
 		const step: Step = {
 			id: randomUUID(),
@@ -49,6 +52,7 @@ export class StepLogger {
 			result,
 			duration,
 			source,
+			locator,
 		}
 
 		// Validate before writing
