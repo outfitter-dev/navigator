@@ -12,7 +12,9 @@
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
 		"test": "bun test",
-		"clean": "rm -rf packages/*/dist"
+		"test:cli": "./.claude/scripts/run-tests.sh --all",
+		"clean": "rm -rf packages/*/dist .scratch/testing",
+		"clean:test": "rm -rf .scratch/testing"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
