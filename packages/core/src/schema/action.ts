@@ -274,11 +274,13 @@ const markersAction = z.object({
 const markerGetAction = z.object({
 	action: z.literal('markerGet'),
 	id: z.string().uuid(),
+	includeScreenshot: z.boolean().optional(),
 })
 
 const markerReadAction = z.object({
 	action: z.literal('markerRead'),
 	ids: z.array(z.string().uuid()).optional(),
+	includeScreenshot: z.boolean().optional(),
 })
 
 const markerDeleteAction = z.object({
