@@ -13,6 +13,7 @@ import type {
 	ColorScheme,
 	FindAction,
 	Geometry,
+	MarkerViewport,
 	NavigatorConfig,
 	TabRef,
 	Viewport,
@@ -1460,12 +1461,31 @@ export class ActionExecutor {
 			}
 		}
 
+		// Capture viewport context
+		let viewport: MarkerViewport | undefined
+		const viewportResult = await this.browserManager.send<{
+			result?: MarkerViewport
+		}>({
+			action: 'evaluate',
+			script: `() => ({
+				width: window.innerWidth,
+				height: window.innerHeight,
+				scrollX: window.scrollX,
+				scrollY: window.scrollY,
+				devicePixelRatio: window.devicePixelRatio,
+			})`,
+		})
+		if (viewportResult.success && viewportResult.data?.result) {
+			viewport = viewportResult.data.result
+		}
+
 		const marker = await this.markerStore.create({
 			url,
 			title,
 			geometry,
 			note,
 			screenshot,
+			viewport,
 		})
 
 		return { success: true, data: marker }

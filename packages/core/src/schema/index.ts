@@ -29,6 +29,8 @@ export {
 	type Marker,
 	type MarkerCreateInput,
 	MarkerSchema,
+	type MarkerViewport,
+	MarkerViewportSchema,
 	type PointGeometry,
 	PointGeometrySchema,
 	type RegionGeometry,
