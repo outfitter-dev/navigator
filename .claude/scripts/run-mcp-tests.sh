@@ -419,11 +419,99 @@ test_response_formatting() {
   setup_output "response-formatting"
   log "Running response-formatting tests..."
 
-  # TODO: Add response formatting tests
-  # - Success response has correct structure
-  # - Snap response includes ARIA tree
-  # - Screenshot response includes image content
-  # - Error response has isError: true
+  # Setup: Navigate to a page first (needed for snap/screenshot)
+  log "Setup: Navigating to example.com..."
+  mcp_call '{"action":"navigate","url":"https://example.com"}' >/dev/null 2>&1 || true
+
+  # Helper for structure tests - checks raw response against pattern
+  run_structure_test() {
+    local num="$1"
+    local name="$2"
+    local action_json="$3"
+    local check_type="$4"  # "contains", "is_array", "jq_check"
+    local check_value="$5"
+
+    ((TOTAL++))
+
+    echo -e "\n# Test $num: $name" >> "$DEBUG_FILE"
+    echo "# Action: $action_json" >> "$DEBUG_FILE"
+    echo "# Check: $check_type = $check_value" >> "$DEBUG_FILE"
+    echo "---" >> "$DEBUG_FILE"
+
+    local response
+    response=$(mcp_call "$action_json" 2>&1) || true
+    echo "Response: $response" >> "$DEBUG_FILE"
+
+    local status details
+    case "$check_type" in
+      contains)
+        if echo "$response" | grep -qE "$check_value"; then
+          status="PASS"
+          details="Found expected pattern"
+          ((PASSED++))
+        else
+          status="FAIL"
+          details="Pattern not found: $check_value"
+          ((FAILED++))
+        fi
+        ;;
+      is_array)
+        if echo "$response" | jq -e "$check_value | type == \"array\"" >/dev/null 2>&1; then
+          status="PASS"
+          details="Content is array"
+          ((PASSED++))
+        else
+          status="FAIL"
+          details="Content is not array"
+          ((FAILED++))
+        fi
+        ;;
+      jq_check)
+        if echo "$response" | jq -e "$check_value" >/dev/null 2>&1; then
+          status="PASS"
+          details="JQ check passed"
+          ((PASSED++))
+        else
+          status="FAIL"
+          details="JQ check failed"
+          ((FAILED++))
+        fi
+        ;;
+    esac
+
+    echo "Status: $status - $details" >> "$DEBUG_FILE"
+    echo "| $num | $name | $status | $details |" >> "$RESULTS_FILE"
+
+    case "$status" in
+      PASS) pass "$num. $name" ;;
+      WARN) warn "$num. $name - $details" ;;
+      FAIL) fail "$num. $name - $details" ;;
+    esac
+  }
+
+  # Test 1: Snap returns text content - verify "type":"text" in response
+  run_structure_test 1 "Snap returns text content" \
+    '{"action":"snap"}' \
+    "contains" \
+    '"type"[[:space:]]*:[[:space:]]*"text"'
+
+  # Test 2: Screenshot returns image content - verify "type":"image" in response
+  run_structure_test 2 "Screenshot returns image content" \
+    '{"action":"screenshot"}' \
+    "contains" \
+    '"type"[[:space:]]*:[[:space:]]*"image"'
+
+  # Test 3: Success message format - wait action returns Success
+  run_mcp_test 3 "Success message format" \
+    '{"action":"wait","ms":50}' \
+    "Success" \
+    false
+
+  # Test 4: Multiple content items - verify content is an array
+  run_structure_test 4 "Content is array" \
+    '{"action":"snap"}' \
+    "is_array" \
+    ".result.content"
 
   finalize_results $PASSED $WARNED $FAILED $TOTAL
 
