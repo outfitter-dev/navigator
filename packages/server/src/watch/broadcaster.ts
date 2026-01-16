@@ -7,7 +7,10 @@
  * @module watch/broadcaster
  */
 
+import { CATEGORIES, getLogger } from '@outfitter/navigator-core/logging'
 import type { ServerWebSocket } from 'bun'
+
+const log = getLogger(CATEGORIES.WATCH)
 
 // ============================================================================
 // Types
@@ -84,6 +87,7 @@ export class WatchBroadcaster {
 	 */
 	addClient(ws: WatchSocket): void {
 		this.clients.add(ws)
+		log.info`Watch client connected ${{ clientCount: this.clients.size }}`
 
 		// Send welcome event
 		this.sendTo(ws, {
@@ -100,6 +104,7 @@ export class WatchBroadcaster {
 	 */
 	removeClient(ws: WatchSocket): void {
 		this.clients.delete(ws)
+		log.info`Watch client disconnected ${{ clientCount: this.clients.size }}`
 	}
 
 	/**

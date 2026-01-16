@@ -27,6 +27,7 @@ import {
 	getStepsPath,
 	hashProjectPath,
 } from '@outfitter/navigator-core'
+import { CATEGORIES, getLogger } from '@outfitter/navigator-core/logging'
 
 const exec = promisify(execCallback)
 
@@ -73,6 +74,8 @@ async function getGitRef(projectRoot: string): Promise<GitRef | null> {
 // ============================================================================
 // Session Manager
 // ============================================================================
+
+const log = getLogger(CATEGORIES.SESSION)
 
 /**
  * Manages browser sessions with automatic continuation and cleanup.
@@ -122,6 +125,7 @@ export class SessionManager {
 	async getOrCreateSession(sessionId?: string): Promise<SessionMeta> {
 		// If specific session requested, load it
 		if (sessionId) {
+			log.debug`Loading specific session ${{ sessionId }}`
 			const session = await this.loadSession(sessionId)
 			this.currentSession = session
 			return session
@@ -131,6 +135,7 @@ export class SessionManager {
 		if (this.currentSession) {
 			const canContinue = await this.canContinueSession(this.currentSession.id)
 			if (canContinue) {
+				log.debug`Continuing current session ${{ sessionId: this.currentSession.id }}`
 				return this.currentSession
 			}
 		}
@@ -138,6 +143,7 @@ export class SessionManager {
 		// Find an existing continuable session
 		const recent = await this.findRecentSession()
 		if (recent) {
+			log.debug`Continuing recent session ${{ sessionId: recent.id }}`
 			this.currentSession = recent
 			return recent
 		}
@@ -153,6 +159,8 @@ export class SessionManager {
 		const id = randomUUID()
 		const now = new Date().toISOString()
 		const paths = getSessionPaths(this.projectRoot, id)
+
+		log.debug`Creating session ${{ id }}`
 
 		// Create session directories
 		await mkdir(paths.root, { recursive: true })
@@ -178,6 +186,7 @@ export class SessionManager {
 		await writeFile(paths.steps, '', 'utf8')
 
 		this.currentSession = meta
+		log.info`Session created ${{ id, gitBranch: meta.gitBranch }}`
 		return meta
 	}
 
@@ -187,10 +196,13 @@ export class SessionManager {
 	async loadSession(sessionId: string): Promise<SessionMeta> {
 		const metaPath = getSessionMetaPath(this.projectRoot, sessionId)
 		if (!existsSync(metaPath)) {
+			log.debug`Session not found ${{ sessionId }}`
 			throw new Error(`Session not found: ${sessionId}`)
 		}
 		const raw = await readFile(metaPath, 'utf8')
-		return SessionMetaSchema.parse(JSON.parse(raw))
+		const session = SessionMetaSchema.parse(JSON.parse(raw))
+		log.debug`Session loaded ${{ sessionId }}`
+		return session
 	}
 
 	/**
