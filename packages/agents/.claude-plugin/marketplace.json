@@ -7,7 +7,7 @@
 	"plugins": [
 		{
 			"name": "navigator",
-			"source": ".",
+			"source": "./navigator",
 			"description": "Browser automation for AI agents"
 		}
 	]
