@@ -13,6 +13,7 @@
 		"test": "bun test"
 	},
 	"dependencies": {
+		"@logtape/hono": "^2.0.0",
 		"@outfitter/agent-browser": "github:outfitter-dev/agent-browser",
 		"@outfitter/navigator-core": "workspace:*",
 		"hono": "^4.7.1",
