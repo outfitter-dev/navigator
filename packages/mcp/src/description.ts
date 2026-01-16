@@ -12,17 +12,12 @@ import { ACTION_CATEGORIES } from './schema'
  *
  * Design principles:
  * - Single tool reduces context overhead vs 26+ separate tools
- * - Symbol prefixes (#, @, $, %) communicate element types
  * - Snap → interact → snap workflow pattern
  */
 export function generateToolDescription(): string {
 	return `Browser automation for AI agents. Execute actions on web pages.
 
-**Element References**: Use refs from \`snap\` output (e.g., "e42"). Symbols indicate type:
-- #ref = text input (type action)
-- @ref = link (click to navigate)
-- $ref = button/interactive (click)
-- %ref = image
+**Element References**: Use refs from \`snap\` output (e.g., "e42").
 
 **Actions**:
 ${formatActionCategories()}

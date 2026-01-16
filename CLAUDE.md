@@ -73,12 +73,6 @@ Navigator supports session continuity with auto-continuation:
 
 Element refs use format `e{index}_{version}` (e.g., `e42_1`). Shorthand `e42` implies current snap.
 
-Symbol prefixes indicate element type:
-- `#` = text-insertable (input, textarea)
-- `@` = link
-- `$` = clickable
-- `%` = image
-
 **Workflow note**: Refs point to DOM elements by index. After page-changing actions (click, navigate), DOM may change - take a fresh snap if refs fail. Use shorthand (`e1`) to skip version validation.
 
 ### Action Categories
