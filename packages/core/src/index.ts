@@ -29,6 +29,7 @@ export {
 	loadConfigFromPath,
 	type BrowserConfig,
 	type Config,
+	type LoggingConfig,
 	type MarkersConfig,
 	type ModesConfig,
 	type NavigatorConfig,

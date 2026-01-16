@@ -24,6 +24,10 @@
 		"./config": {
 			"types": "./dist/config/index.d.ts",
 			"import": "./dist/config/index.js"
+		},
+		"./logging": {
+			"types": "./dist/logging/index.d.ts",
+			"import": "./dist/logging/index.js"
 		}
 	},
 	"scripts": {
@@ -33,6 +37,7 @@
 		"test": "bun test"
 	},
 	"dependencies": {
+		"@logtape/logtape": "^0.10.0",
 		"yaml": "^2.6.1",
 		"zod": "^3.24.1"
 	},

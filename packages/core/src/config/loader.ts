@@ -43,12 +43,57 @@ const ModesConfigSchema = z.object({
 	default: z.enum(['headless', 'windowed', 'paired']).default('headless'),
 })
 
+/**
+ * Logging configuration schema.
+ *
+ * Controls LogTape logging behavior including level, format, and per-category overrides.
+ *
+ * @example YAML
+ * ```yaml
+ * logging:
+ *   level: info
+ *   format: text
+ *   file: ~/.local/share/navigator/logs/navigator.log
+ *   categories:
+ *     navigator.server.actions: debug
+ *     hono: warning
+ * ```
+ */
+const LoggingConfigSchema = z.object({
+	/**
+	 * Root log level for Navigator loggers.
+	 * @default 'info'
+	 */
+	level: z.enum(['debug', 'info', 'warning', 'error', 'fatal']).default('info'),
+
+	/**
+	 * Output format: 'text' for human-readable, 'json' for structured.
+	 * If not specified, determined by environment (text in dev, json in prod).
+	 */
+	format: z.enum(['text', 'json']).optional(),
+
+	/**
+	 * Path to log file (enables file logging in addition to console).
+	 * Supports ~ for home directory.
+	 */
+	file: z.string().optional(),
+
+	/**
+	 * Per-category log level overrides.
+	 * Keys are dot-separated category paths.
+	 */
+	categories: z
+		.record(z.string(), z.enum(['debug', 'info', 'warning', 'error', 'fatal']))
+		.optional(),
+})
+
 const ConfigSchema = z.object({
 	server: ServerConfigSchema.default({}),
 	browser: BrowserConfigSchema.default({}),
 	session: SessionConfigSchema.default({}),
 	markers: MarkersConfigSchema.default({}),
 	modes: ModesConfigSchema.default({}),
+	logging: LoggingConfigSchema.default({}),
 })
 
 export type Config = z.infer<typeof ConfigSchema>
@@ -58,6 +103,7 @@ export type SessionConfig = z.infer<typeof SessionConfigSchema>
 export type MarkersConfig = z.infer<typeof MarkersConfigSchema>
 export type ModesConfig = z.infer<typeof ModesConfigSchema>
 export type ViewportConfig = z.infer<typeof ViewportConfigSchema>
+export type LoggingConfig = z.infer<typeof LoggingConfigSchema>
 
 // ============================================================================
 // Config Loading
