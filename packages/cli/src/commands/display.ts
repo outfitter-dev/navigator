@@ -19,6 +19,51 @@ const VIEWPORT_PRESETS = {
 } as const
 
 type ViewportPreset = keyof typeof VIEWPORT_PRESETS
+type ViewportDimensions = { width: number; height: number }
+
+/** Format error message from unknown error */
+function formatError(error: unknown): string {
+	return error instanceof Error ? error.message : String(error)
+}
+
+/** Resolve viewport dimensions from preset name */
+function resolvePreset(
+	presetName: string,
+):
+	| { ok: true; dimensions: ViewportDimensions; name: ViewportPreset }
+	| { ok: false; error: string } {
+	if (!(presetName in VIEWPORT_PRESETS)) {
+		return {
+			ok: false,
+			error: `Invalid preset: ${presetName}. Use: mobile, tablet, desktop`,
+		}
+	}
+	const name = presetName as ViewportPreset
+	return { ok: true, dimensions: VIEWPORT_PRESETS[name], name }
+}
+
+/** Parse and validate explicit dimensions */
+function parseDimensions(
+	widthStr?: string,
+	heightStr?: string,
+): { ok: true; dimensions: ViewportDimensions } | { ok: false; error: string } {
+	if (!widthStr || !heightStr) {
+		return {
+			ok: false,
+			error:
+				'Usage: nav viewport <width> <height> or nav viewport --preset <name>',
+		}
+	}
+
+	const width = Number(widthStr)
+	const height = Number(heightStr)
+
+	if (Number.isNaN(width) || Number.isNaN(height)) {
+		return { ok: false, error: 'Width and height must be valid numbers' }
+	}
+
+	return { ok: true, dimensions: { width, height } }
+}
 
 export function registerDisplayCommands(
 	program: Command,
@@ -37,65 +82,28 @@ export function registerDisplayCommands(
 			) => {
 				const client = getClient()
 
-				// Handle preset
-				if (options?.preset) {
-					const presetName = options.preset as ViewportPreset
-					if (!(presetName in VIEWPORT_PRESETS)) {
-						console.error(
-							`Invalid preset: ${options.preset}. Use: mobile, tablet, desktop`,
-						)
-						process.exitCode = 1
-						return
-					}
+				// Resolve dimensions from preset or explicit args
+				const resolved = options?.preset
+					? resolvePreset(options.preset)
+					: parseDimensions(widthStr, heightStr)
 
-					const preset = VIEWPORT_PRESETS[presetName]
-					try {
-						await client.execute({
-							action: 'viewport',
-							width: preset.width,
-							height: preset.height,
-						})
-						console.log(
-							`Viewport set to ${presetName}: ${preset.width}x${preset.height}`,
-						)
-					} catch (error) {
-						console.error(
-							`Failed to set viewport: ${error instanceof Error ? error.message : String(error)}`,
-						)
-						process.exitCode = 1
-					}
-					return
-				}
-
-				// Handle explicit dimensions
-				if (!widthStr || !heightStr) {
-					console.error(
-						'Usage: nav viewport <width> <height> or nav viewport --preset <name>',
-					)
+				if (!resolved.ok) {
+					console.error(resolved.error)
 					process.exitCode = 1
 					return
 				}
 
-				const width = Number(widthStr)
-				const height = Number(heightStr)
-
-				if (Number.isNaN(width) || Number.isNaN(height)) {
-					console.error('Width and height must be valid numbers')
-					process.exitCode = 1
-					return
-				}
+				const { width, height } = resolved.dimensions
+				const label =
+					'name' in resolved
+						? `${resolved.name}: ${width}x${height}`
+						: `${width}x${height}`
 
 				try {
-					await client.execute({
-						action: 'viewport',
-						width,
-						height,
-					})
-					console.log(`Viewport set to: ${width}x${height}`)
+					await client.execute({ action: 'viewport', width, height })
+					console.log(`Viewport set to ${label}`)
 				} catch (error) {
-					console.error(
-						`Failed to set viewport: ${error instanceof Error ? error.message : String(error)}`,
-					)
+					console.error(`Failed to set viewport: ${formatError(error)}`)
 					process.exitCode = 1
 				}
 			},
