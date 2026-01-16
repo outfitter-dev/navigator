@@ -3,24 +3,27 @@
 # Usage: ./run-mcp-tests.sh [category|--all]
 #
 # Runs automated MCP server tests via JSON-RPC stdio protocol.
-# No agent interpretation required - fully automated.
+# Uses shared test-runner-lib.sh for common patterns.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-OUTPUT_DIR=".scratch/testing"
+
+# Source shared library
+source "$SCRIPT_DIR/lib/test-runner-lib.sh"
+
+# ============================================================================
+# Navigator MCP-specific configuration
+# ============================================================================
+
 SERVER_URL="${NAVIGATOR_SERVER_URL:-http://localhost:9334}"
 MCP_ENTRY="$PROJECT_DIR/packages/mcp/src/index.ts"
-DATE=$(date +%Y%m%d)
-RUN_ID=$(printf '%05d' $RANDOM)
+OUTPUT_DIR=".scratch/testing"
 
-# Colors (disabled if not tty)
-if [[ -t 1 ]]; then
-  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; BLUE='\033[0;34m'; NC='\033[0m'
-else
-  RED=''; GREEN=''; YELLOW=''; BLUE=''; NC=''
-fi
+# ============================================================================
+# CLI Usage
+# ============================================================================
 
 usage() {
   cat <<EOF
@@ -44,16 +47,10 @@ Examples:
 EOF
 }
 
-log() { echo -e "${BLUE}[mcp-test]${NC} $*"; }
-pass() { echo -e "${GREEN}PASS${NC} $*"; }
-fail() { echo -e "${RED}FAIL${NC} $*"; }
-warn() { echo -e "${YELLOW}WARN${NC} $*"; }
-
 # ============================================================================
 # Dependency Checks
 # ============================================================================
 
-# Check navigator-server health (MCP proxies to server)
 check_server() {
   if ! curl -fsSL "$SERVER_URL/health" >/dev/null 2>&1; then
     echo -e "${RED}ERROR${NC}: Navigator server not running at $SERVER_URL"
@@ -62,7 +59,6 @@ check_server() {
   fi
 }
 
-# Verify jq is available for JSON parsing
 check_jq() {
   if ! command -v jq &>/dev/null; then
     echo -e "${RED}ERROR${NC}: jq is required for JSON parsing"
@@ -72,80 +68,35 @@ check_jq() {
 }
 
 # ============================================================================
-# Output Setup
-# ============================================================================
-
-# Setup output directory and files
-setup_output() {
-  local category="$1"
-  mkdir -p "$OUTPUT_DIR"
-
-  RESULTS_FILE="$OUTPUT_DIR/${DATE}-${RUN_ID}-mcp-${category}.md"
-  DEBUG_FILE="$OUTPUT_DIR/${DATE}-${RUN_ID}-mcp-${category}-debug.log"
-
-  cat > "$RESULTS_FILE" <<EOF
-# Navigator MCP Test Report
-
-**Category**: ${category}
-**Run ID**: ${RUN_ID}
-**Date**: $(date -Iseconds)
-**Server**: ${SERVER_URL}
-**Debug Log**: ${DEBUG_FILE}
-
----
-
-## Results
-
-| # | Test | Status | Details |
-|---|------|--------|---------|
-EOF
-
-  cat > "$DEBUG_FILE" <<EOF
-# Navigator MCP Debug Log
-# Category: ${category}
-# Run ID: ${RUN_ID}
-# Started: $(date -Iseconds)
-# Server: ${SERVER_URL}
-# ============================================================
-
-EOF
-}
-
-# ============================================================================
-# Counters
-# ============================================================================
-
-PASSED=0
-WARNED=0
-FAILED=0
-TOTAL=0
-
-reset_counters() {
-  PASSED=0
-  WARNED=0
-  FAILED=0
-  TOTAL=0
-}
-
-# ============================================================================
 # MCP Communication
 # ============================================================================
 
 # Send JSON-RPC request to MCP server via stdio
-# Args: action_json - JSON object with action parameters
-# Returns: JSON-RPC response
+# Note: NAVIGATOR_SERVER_URL is passed to the MCP client via environment variable
 mcp_call() {
   local action_json="$1"
   echo "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"navigator\",\"arguments\":$action_json},\"id\":1}" \
-    | bun "$MCP_ENTRY" 2>/dev/null
+    | NAVIGATOR_SERVER_URL="$SERVER_URL" bun "$MCP_ENTRY" 2>/dev/null
 }
 
 # ============================================================================
-# Test Runner
+# MCP-specific setup and test functions
 # ============================================================================
 
-# Run a single MCP test case
-# Args: test_num, test_name, action_json, expected_pattern, [expect_error]
+# Override setup_category for MCP-specific naming
+setup_mcp_category() {
+  local category="$1"
+
+  # Use base setup but prepend "mcp-" to category name
+  setup_category "mcp-$category"
+
+  # Patch the results file to include Server info
+  local temp_file="${RESULTS_FILE}.tmp"
+  sed "s|^\*\*Debug Log\*\*: .*$|**Debug Log**: ${DEBUG_FILE##*/}\n**Server**: ${SERVER_URL}|" "$RESULTS_FILE" > "$temp_file"
+  mv "$temp_file" "$RESULTS_FILE"
+}
+
+# MCP-specific test runner using JSON-RPC
 run_mcp_test() {
   local num="$1"
   local name="$2"
@@ -153,17 +104,26 @@ run_mcp_test() {
   local expected="$4"
   local expect_error="${5:-false}"
 
-  ((TOTAL++))
+  TOTAL=$((TOTAL + 1))
 
-  echo -e "\n# Test $num: $name" >> "$DEBUG_FILE"
-  echo "# Action: $action_json" >> "$DEBUG_FILE"
-  echo "# Expected: $expected" >> "$DEBUG_FILE"
-  echo "# Expect error: $expect_error" >> "$DEBUG_FILE"
-  echo "---" >> "$DEBUG_FILE"
+  # Console output (test start)
+  echo -e "${BLUE}Test $num: $name${NC}"
+
+  # Log to debug file
+  cat >> "$DEBUG_FILE" << EOF
+
+# Test $num: $name
+# Action: $action_json
+# Expected: $expected
+# Expect error: $expect_error
+---
+EOF
 
   # Send MCP request and capture response
   local response
-  response=$(mcp_call "$action_json" 2>&1) || true
+  set +e
+  response=$(mcp_call "$action_json" 2>&1)
+  set -e
 
   echo "Response: $response" >> "$DEBUG_FILE"
 
@@ -174,353 +134,315 @@ run_mcp_test() {
 
   echo "isError: $is_error" >> "$DEBUG_FILE"
   echo "content: $content_text" >> "$DEBUG_FILE"
+  echo "---" >> "$DEBUG_FILE"
 
   # Determine pass/fail
-  local status details
+  local status="FAIL"
+  local details=""
+
   if [[ "$expect_error" == "true" ]]; then
     if [[ "$is_error" == "true" ]]; then
       if [[ -z "$expected" ]] || echo "$content_text" | grep -qE "$expected"; then
         status="PASS"
         details="Got expected error"
-        ((PASSED++))
       else
         status="WARN"
         details="Error but pattern not matched"
-        ((WARNED++))
       fi
     else
       status="FAIL"
       details="Expected error, got success"
-      ((FAILED++))
     fi
   else
     if [[ "$is_error" == "false" ]]; then
       if [[ -z "$expected" ]] || echo "$content_text" | grep -qE "$expected"; then
         status="PASS"
         details="Success"
-        ((PASSED++))
       else
         status="WARN"
         details="Success but output unexpected"
-        ((WARNED++))
       fi
     else
       status="FAIL"
       details="Expected success, got error"
-      ((FAILED++))
     fi
   fi
 
-  # Record result
-  echo "| $num | $name | $status | $details |" >> "$RESULTS_FILE"
-
-  # Console output
+  # Update counters
   case "$status" in
-    PASS) pass "$num. $name" ;;
-    WARN) warn "$num. $name - $details" ;;
-    FAIL) fail "$num. $name - $details" ;;
+    PASS)
+      PASSED=$((PASSED + 1))
+      echo -e "  ${GREEN}PASS${NC}: $details"
+      ;;
+    WARN)
+      WARNED=$((WARNED + 1))
+      echo -e "  ${YELLOW}WARN${NC}: $details"
+      ;;
+    FAIL)
+      FAILED=$((FAILED + 1))
+      echo -e "  ${RED}FAIL${NC}: $details"
+      ;;
   esac
+
+  # Write to markdown report
+  echo "| $num | $name | $status | $details |" >> "$RESULTS_FILE"
 }
 
-# ============================================================================
-# Finalize Results
-# ============================================================================
+# Structure test for validating response format
+run_structure_test() {
+  local num="$1"
+  local name="$2"
+  local action_json="$3"
+  local check_type="$4"  # "contains", "is_array", "jq_check"
+  local check_value="$5"
 
-finalize_results() {
-  local passed="$1" warned="$2" failed="$3" total="$4"
+  TOTAL=$((TOTAL + 1))
 
-  cat >> "$RESULTS_FILE" <<EOF
+  # Console output (test start)
+  echo -e "${BLUE}Test $num: $name${NC}"
 
+  # Log to debug file
+  cat >> "$DEBUG_FILE" << EOF
+
+# Test $num: $name
+# Action: $action_json
+# Check: $check_type = $check_value
 ---
-
-## Summary
-
-| Metric | Count |
-|--------|-------|
-| Total | $total |
-| Passed | $passed |
-| Warnings | $warned |
-| Failed | $failed |
-
 EOF
 
-  if [[ $failed -gt 0 ]]; then
-    echo -e "\n## Debug\n\nSee debug log: \`$DEBUG_FILE\`" >> "$RESULTS_FILE"
-  fi
+  local response
+  set +e
+  response=$(mcp_call "$action_json" 2>&1)
+  set -e
+
+  echo "Response: $response" >> "$DEBUG_FILE"
+
+  local status="FAIL"
+  local details=""
+
+  case "$check_type" in
+    contains)
+      if echo "$response" | grep -qE "$check_value"; then
+        status="PASS"
+        details="Found expected pattern"
+      else
+        status="FAIL"
+        details="Pattern not found: $check_value"
+      fi
+      ;;
+    is_array)
+      if echo "$response" | jq -e "$check_value | type == \"array\"" >/dev/null 2>&1; then
+        status="PASS"
+        details="Content is array"
+      else
+        status="FAIL"
+        details="Content is not array"
+      fi
+      ;;
+    jq_check)
+      if echo "$response" | jq -e "$check_value" >/dev/null 2>&1; then
+        status="PASS"
+        details="JQ check passed"
+      else
+        status="FAIL"
+        details="JQ check failed"
+      fi
+      ;;
+  esac
+
+  echo "Status: $status - $details" >> "$DEBUG_FILE"
+  echo "---" >> "$DEBUG_FILE"
+
+  # Update counters
+  case "$status" in
+    PASS)
+      PASSED=$((PASSED + 1))
+      echo -e "  ${GREEN}PASS${NC}: $details"
+      ;;
+    WARN)
+      WARNED=$((WARNED + 1))
+      echo -e "  ${YELLOW}WARN${NC}: $details"
+      ;;
+    FAIL)
+      FAILED=$((FAILED + 1))
+      echo -e "  ${RED}FAIL${NC}: $details"
+      ;;
+  esac
+
+  # Write to markdown report
+  echo "| $num | $name | $status | $details |" >> "$RESULTS_FILE"
 }
 
 # ============================================================================
-# Test Categories (stubs for now)
+# Test Categories
 # ============================================================================
 
-# Test input schema validation
 test_schema_validation() {
-  reset_counters
-  setup_output "schema-validation"
-  log "Running schema-validation tests..."
+  setup_mcp_category "schema-validation"
+  print_info "Running schema-validation tests..."
 
   # Test 1: Missing action field
   run_mcp_test 1 "Missing action field" \
     '{}' \
     "" \
-    true
+    "true"
 
   # Test 2: Unknown action type
   run_mcp_test 2 "Unknown action type" \
     '{"action":"invalid"}' \
     "" \
-    true
+    "true"
 
   # Test 3: Missing required param (navigate needs url)
   run_mcp_test 3 "Missing required param (navigate needs url)" \
     '{"action":"navigate"}' \
     "" \
-    true
+    "true"
 
   # Test 4: Missing required param (tab needs ref)
   run_mcp_test 4 "Missing required param (tab needs ref)" \
     '{"action":"tab"}' \
     "" \
-    true
+    "true"
 
   # Test 5: Type mismatch (wait ms should be number)
   run_mcp_test 5 "Type mismatch (wait ms should be number)" \
     '{"action":"wait","ms":"string"}' \
     "" \
-    true
+    "true"
 
-  # Test 6: Valid minimal action
+  # Test 6: Valid minimal action (tabs works in all modes including paired)
   run_mcp_test 6 "Valid minimal action" \
-    '{"action":"snap"}' \
+    '{"action":"tabs"}' \
     "" \
-    false
+    "false"
 
   # Test 7: Valid action with params
   run_mcp_test 7 "Valid action with params" \
     '{"action":"wait","ms":100}' \
     "" \
-    false
+    "false"
 
-  finalize_results $PASSED $WARNED $FAILED $TOTAL
-
-  echo ""
-  log "Results: $PASSED passed, $WARNED warnings, $FAILED failed (of $TOTAL)"
-  log "Report: $RESULTS_FILE"
-  log "Debug:  $DEBUG_FILE"
-
-  [[ $FAILED -eq 0 ]] && return 0 || return 1
+  finalize_category
 }
 
-# Test action routing and dispatch
 test_action_routing() {
-  reset_counters
-  setup_output "action-routing"
-  log "Running action-routing tests..."
+  setup_mcp_category "action-routing"
+  print_info "Running action-routing tests..."
 
-  # Test 1: Navigation - navigate to example.com
-  run_mcp_test 1 "Navigate to example.com" \
-    '{"action":"navigate","url":"https://example.com"}' \
+  # Test 1: Navigation - navigate to about:blank (local, works offline)
+  run_mcp_test 1 "Navigate to about:blank" \
+    '{"action":"navigate","url":"about:blank"}' \
     "" \
-    false
+    "false"
 
   # Test 2: Capture - snap (after navigate)
   run_mcp_test 2 "Snap page state" \
     '{"action":"snap"}' \
     "" \
-    false
+    "false"
 
   # Test 3: Capture - screenshot
   run_mcp_test 3 "Take screenshot" \
     '{"action":"screenshot"}' \
     "" \
-    false
+    "false"
 
   # Test 4: Tabs - list tabs
   run_mcp_test 4 "List open tabs" \
     '{"action":"tabs"}' \
     "" \
-    false
+    "false"
 
   # Test 5: Wait - wait 100ms
   run_mcp_test 5 "Wait 100ms" \
     '{"action":"wait","ms":100}' \
     "" \
-    false
+    "false"
 
   # Test 6: Interaction - scroll down (y=100)
   run_mcp_test 6 "Scroll down" \
     '{"action":"scroll","y":100}' \
     "" \
-    false
+    "false"
 
   # Test 7: Display - set viewport
   run_mcp_test 7 "Set viewport 1280x720" \
     '{"action":"viewport","width":1280,"height":720}' \
     "" \
-    false
+    "false"
 
-  finalize_results $PASSED $WARNED $FAILED $TOTAL
-
-  echo ""
-  log "Results: $PASSED passed, $WARNED warnings, $FAILED failed (of $TOTAL)"
-  log "Report: $RESULTS_FILE"
-  log "Debug:  $DEBUG_FILE"
-
-  [[ $FAILED -eq 0 ]] && return 0 || return 1
+  finalize_category
 }
 
-# Test error response codes and formatting
 test_error_responses() {
-  reset_counters
-  setup_output "error-responses"
-  log "Running error-responses tests..."
+  setup_mcp_category "error-responses"
+  print_info "Running error-responses tests..."
 
-  # Setup: Navigate to a page first (needed for element/interaction tests)
-  log "Setup: Navigating to example.com..."
-  mcp_call '{"action":"navigate","url":"https://example.com"}' >/dev/null 2>&1 || true
+  # Setup: Navigate to a page first (use data URL for offline compatibility)
+  print_info "Setup: Navigating to test page..."
+  mcp_call '{"action":"navigate","url":"data:text/html,<html><body><h1>Test</h1></body></html>"}' >/dev/null 2>&1 || true
 
-  # Test 1: Element not found - click on non-existent element ref
+  # Test 1: Element not found
   run_mcp_test 1 "Element not found (click e99999)" \
     '{"action":"click","ref":"e99999"}' \
     "not found|Element.*not found" \
-    true
+    "true"
 
-  # Test 2: Tab not found - switch to non-existent tab
+  # Test 2: Tab not found
   run_mcp_test 2 "Tab not found (tab b99)" \
     '{"action":"tab","ref":"b99"}' \
     "Invalid tab|tab.*not found" \
-    true
+    "true"
 
-  # Test 3: Invalid selector - malformed CSS selector
+  # Test 3: Invalid selector
   run_mcp_test 3 "Invalid selector (waitFor)" \
     '{"action":"waitFor","selector":"[invalid[["}' \
     "SELECTOR_INVALID|error|invalid" \
-    true
+    "true"
 
-  # Test 4: Timeout - waitFor with impossible selector and short timeout
+  # Test 4: Timeout
   run_mcp_test 4 "Timeout (waitFor non-existent element)" \
     '{"action":"waitFor","selector":"#does-not-exist-xyz123","timeout":100}' \
     "timeout|Timeout|exceeded" \
-    true
+    "true"
 
-  finalize_results $PASSED $WARNED $FAILED $TOTAL
-
-  echo ""
-  log "Results: $PASSED passed, $WARNED warnings, $FAILED failed (of $TOTAL)"
-  log "Report: $RESULTS_FILE"
-  log "Debug:  $DEBUG_FILE"
-
-  [[ $FAILED -eq 0 ]] && return 0 || return 1
+  finalize_category
 }
 
-# Test response structure and formatting
 test_response_formatting() {
-  reset_counters
-  setup_output "response-formatting"
-  log "Running response-formatting tests..."
+  setup_mcp_category "response-formatting"
+  print_info "Running response-formatting tests..."
 
-  # Setup: Navigate to a page first (needed for snap/screenshot)
-  log "Setup: Navigating to example.com..."
-  mcp_call '{"action":"navigate","url":"https://example.com"}' >/dev/null 2>&1 || true
+  # Setup: Navigate to a page first (use data URL for offline compatibility)
+  print_info "Setup: Navigating to test page..."
+  mcp_call '{"action":"navigate","url":"data:text/html,<html><body><h1>Test</h1></body></html>"}' >/dev/null 2>&1 || true
 
-  # Helper for structure tests - checks raw response against pattern
-  run_structure_test() {
-    local num="$1"
-    local name="$2"
-    local action_json="$3"
-    local check_type="$4"  # "contains", "is_array", "jq_check"
-    local check_value="$5"
-
-    ((TOTAL++))
-
-    echo -e "\n# Test $num: $name" >> "$DEBUG_FILE"
-    echo "# Action: $action_json" >> "$DEBUG_FILE"
-    echo "# Check: $check_type = $check_value" >> "$DEBUG_FILE"
-    echo "---" >> "$DEBUG_FILE"
-
-    local response
-    response=$(mcp_call "$action_json" 2>&1) || true
-    echo "Response: $response" >> "$DEBUG_FILE"
-
-    local status details
-    case "$check_type" in
-      contains)
-        if echo "$response" | grep -qE "$check_value"; then
-          status="PASS"
-          details="Found expected pattern"
-          ((PASSED++))
-        else
-          status="FAIL"
-          details="Pattern not found: $check_value"
-          ((FAILED++))
-        fi
-        ;;
-      is_array)
-        if echo "$response" | jq -e "$check_value | type == \"array\"" >/dev/null 2>&1; then
-          status="PASS"
-          details="Content is array"
-          ((PASSED++))
-        else
-          status="FAIL"
-          details="Content is not array"
-          ((FAILED++))
-        fi
-        ;;
-      jq_check)
-        if echo "$response" | jq -e "$check_value" >/dev/null 2>&1; then
-          status="PASS"
-          details="JQ check passed"
-          ((PASSED++))
-        else
-          status="FAIL"
-          details="JQ check failed"
-          ((FAILED++))
-        fi
-        ;;
-    esac
-
-    echo "Status: $status - $details" >> "$DEBUG_FILE"
-    echo "| $num | $name | $status | $details |" >> "$RESULTS_FILE"
-
-    case "$status" in
-      PASS) pass "$num. $name" ;;
-      WARN) warn "$num. $name - $details" ;;
-      FAIL) fail "$num. $name - $details" ;;
-    esac
-  }
-
-  # Test 1: Snap returns text content - verify "type":"text" in response
+  # Test 1: Snap returns text content (check for isError:false to exclude error responses)
   run_structure_test 1 "Snap returns text content" \
     '{"action":"snap"}' \
-    "contains" \
-    '"type"[[:space:]]*:[[:space:]]*"text"'
+    "jq_check" \
+    '.result.isError == false and .result.content[0].type == "text"'
 
-  # Test 2: Screenshot returns image content - verify "type":"image" in response
+  # Test 2: Screenshot returns image content
   run_structure_test 2 "Screenshot returns image content" \
     '{"action":"screenshot"}' \
     "contains" \
     '"type"[[:space:]]*:[[:space:]]*"image"'
 
-  # Test 3: Success message format - wait action returns Success
+  # Test 3: Success message format
   run_mcp_test 3 "Success message format" \
     '{"action":"wait","ms":50}' \
     "Success" \
-    false
+    "false"
 
-  # Test 4: Multiple content items - verify content is an array
+  # Test 4: Content is array
   run_structure_test 4 "Content is array" \
     '{"action":"snap"}' \
     "is_array" \
     ".result.content"
 
-  finalize_results $PASSED $WARNED $FAILED $TOTAL
-
-  echo ""
-  log "Results: $PASSED passed, $WARNED warnings, $FAILED failed (of $TOTAL)"
-  log "Report: $RESULTS_FILE"
-  log "Debug:  $DEBUG_FILE"
-
-  [[ $FAILED -eq 0 ]] && return 0 || return 1
+  finalize_category
 }
 
 # ============================================================================
@@ -544,12 +466,15 @@ main() {
     exit 1
   fi
 
+  # Initialize test runner
+  init_test_runner "$OUTPUT_DIR" "Navigator MCP"
+
   check_jq
   check_server
 
-  log "Navigator MCP Test Runner"
-  log "Server: $SERVER_URL"
-  log "Output: $OUTPUT_DIR"
+  print_header "Navigator MCP Test Runner"
+  echo "Server: $SERVER_URL"
+  echo "Output: $OUTPUT_DIR"
   echo ""
 
   local exit_code=0
@@ -574,9 +499,9 @@ main() {
 
   echo ""
   if [[ $exit_code -eq 0 ]]; then
-    log "${GREEN}All tests passed${NC}"
+    print_pass "All tests passed"
   else
-    log "${RED}Some tests failed${NC}"
+    print_fail "Some tests failed"
   fi
 
   exit $exit_code

@@ -3,24 +3,27 @@
 # Usage: ./run-tests.sh [category|--all] [--url <test-url>]
 #
 # Runs automated CLI tests and outputs structured results.
-# No agent interpretation required - fully automated.
+# Uses shared test-runner-lib.sh for common patterns.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TESTS_DIR="$SCRIPT_DIR/tests"
-OUTPUT_DIR=".scratch/testing"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Source shared library
+source "$SCRIPT_DIR/lib/test-runner-lib.sh"
+
+# ============================================================================
+# Navigator-specific configuration
+# ============================================================================
+
 SERVER_URL="${NAVIGATOR_SERVER_URL:-http://localhost:9334}"
 TEST_URL="${TEST_URL:-https://the-internet.herokuapp.com/}"
-DATE=$(date +%Y%m%d)
-RUN_ID=$(printf '%05d' $RANDOM)
+OUTPUT_DIR=".scratch/testing"
 
-# Colors (disabled if not tty)
-if [[ -t 1 ]]; then
-  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; BLUE='\033[0;34m'; NC='\033[0m'
-else
-  RED=''; GREEN=''; YELLOW=''; BLUE=''; NC=''
-fi
+# ============================================================================
+# CLI Usage
+# ============================================================================
 
 usage() {
   cat <<EOF
@@ -44,12 +47,10 @@ Examples:
 EOF
 }
 
-log() { echo -e "${BLUE}[test]${NC} $*"; }
-pass() { echo -e "${GREEN}PASS${NC} $*"; }
-fail() { echo -e "${RED}FAIL${NC} $*"; }
-warn() { echo -e "${YELLOW}WARN${NC} $*"; }
+# ============================================================================
+# Dependency Checks
+# ============================================================================
 
-# Check server health
 check_server() {
   if ! curl -fsSL "$SERVER_URL/health" >/dev/null 2>&1; then
     echo -e "${RED}ERROR${NC}: Navigator server not running at $SERVER_URL"
@@ -58,257 +59,195 @@ check_server() {
   fi
 }
 
-# Setup output directory and files
-setup_output() {
+# ============================================================================
+# Navigator-specific test runner
+# ============================================================================
+
+# Override setup_category to include Navigator-specific fields in report header
+setup_nav_category() {
   local category="$1"
-  mkdir -p "$OUTPUT_DIR"
 
-  RESULTS_FILE="$OUTPUT_DIR/${DATE}-${RUN_ID}-${category}.md"
-  DEBUG_FILE="$OUTPUT_DIR/${DATE}-${RUN_ID}-${category}-debug.log"
+  # Call base setup
+  setup_category "$category"
 
-  cat > "$RESULTS_FILE" <<EOF
-# Navigator CLI Test Report
-
-**Category**: ${category}
-**Run ID**: ${RUN_ID}
-**Date**: $(date -Iseconds)
-**Server**: ${SERVER_URL}
-**Test URL**: ${TEST_URL}
-**Debug Log**: ${DEBUG_FILE}
-
----
-
-## Results
-
-| # | Test | Status | Details |
-|---|------|--------|---------|
-EOF
-
-  cat > "$DEBUG_FILE" <<EOF
-# Navigator CLI Debug Log
-# Category: ${category}
-# Run ID: ${RUN_ID}
-# Started: $(date -Iseconds)
-# Server: ${SERVER_URL}
-# ============================================================
-
-EOF
+  # Patch the results file to include Server and Test URL info
+  # Insert after the "Debug Log" line
+  local temp_file="${RESULTS_FILE}.tmp"
+  sed "s|^\*\*Debug Log\*\*: .*$|**Debug Log**: ${DEBUG_FILE##*/}\n**Server**: ${SERVER_URL}\n**Test URL**: ${TEST_URL}|" "$RESULTS_FILE" > "$temp_file"
+  mv "$temp_file" "$RESULTS_FILE"
 }
 
-# Counters (global for simplicity)
-PASSED=0
-WARNED=0
-FAILED=0
-TOTAL=0
-
-# Run a single test case
-# Args: test_num, test_name, command, expected_pattern, [expect_fail]
-run_test() {
+# Navigator-specific run_test that uses nav --debug
+run_nav_test() {
   local num="$1"
   local name="$2"
   local cmd="$3"
-  local expected="$4"
+  local pattern="$4"
   local expect_fail="${5:-false}"
 
-  ((TOTAL++))
+  TOTAL=$((TOTAL + 1))
 
-  echo -e "\n# Test $num: $name" >> "$DEBUG_FILE"
-  echo "# Command: $cmd" >> "$DEBUG_FILE"
-  echo "# Expected: $expected" >> "$DEBUG_FILE"
-  echo "# Expect fail: $expect_fail" >> "$DEBUG_FILE"
-  echo "---" >> "$DEBUG_FILE"
+  # Console output (test start)
+  echo -e "${BLUE}Test $num: $name${NC}"
 
-  # Run command with debug, capture output and exit code
-  local output exit_code
-  output=$(eval "nav --debug $cmd" 2>&1) || true
-  exit_code=${PIPESTATUS[0]}
+  # Log to debug file
+  cat >> "$DEBUG_FILE" << EOF
 
+# Test $num: $name
+# Command: nav --debug $cmd
+# Expected pattern: $pattern
+# Expect fail: $expect_fail
+---
+EOF
+
+  # Execute command with nav --debug prefix
+  local output=""
+  local exit_code=0
+
+  set +e
+  output=$(eval "nav --debug $cmd" 2>&1)
+  exit_code=$?
+  set -e
+
+  # Log output to debug file
   echo "$output" >> "$DEBUG_FILE"
   echo "Exit code: $exit_code" >> "$DEBUG_FILE"
+  echo "---" >> "$DEBUG_FILE"
 
-  # Determine pass/fail
-  local status details
+  # Determine pass/fail (Navigator-specific logic)
+  local status="FAIL"
+  local details=""
+
   if [[ "$expect_fail" == "true" ]]; then
     if [[ $exit_code -ne 0 ]] || echo "$output" | grep -qiE "(error|fail|invalid)"; then
-      if echo "$output" | grep -qE "$expected"; then
+      if echo "$output" | grep -qE "$pattern"; then
         status="PASS"
         details="Got expected error"
-        ((PASSED++))
       else
         status="WARN"
         details="Error but pattern not matched"
-        ((WARNED++))
       fi
     else
       status="FAIL"
       details="Expected error, got success"
-      ((FAILED++))
     fi
   else
     if [[ $exit_code -eq 0 ]] && ! echo "$output" | grep -qiE "^error:"; then
-      if [[ -z "$expected" ]] || echo "$output" | grep -qE "$expected"; then
+      if [[ -z "$pattern" ]] || echo "$output" | grep -qE "$pattern"; then
         status="PASS"
         details="Success"
-        ((PASSED++))
       else
         status="WARN"
         details="Success but output unexpected"
-        ((WARNED++))
       fi
     else
       status="FAIL"
       details="Expected success, got error"
-      ((FAILED++))
     fi
   fi
 
-  # Record result
-  echo "| $num | $name | $status | $details |" >> "$RESULTS_FILE"
-
-  # Console output
+  # Update counters
   case "$status" in
-    PASS) pass "$num. $name" ;;
-    WARN) warn "$num. $name - $details" ;;
-    FAIL) fail "$num. $name - $details" ;;
+    PASS)
+      PASSED=$((PASSED + 1))
+      echo -e "  ${GREEN}PASS${NC}: $details"
+      ;;
+    WARN)
+      WARNED=$((WARNED + 1))
+      echo -e "  ${YELLOW}WARN${NC}: $details"
+      ;;
+    FAIL)
+      FAILED=$((FAILED + 1))
+      echo -e "  ${RED}FAIL${NC}: $details"
+      ;;
   esac
+
+  # Write to markdown report
+  echo "| $num | $name | $status | $details |" >> "$RESULTS_FILE"
 }
 
-# Finalize results file
-finalize_results() {
-  local passed="$1" warned="$2" failed="$3" total="$4"
+# ============================================================================
+# Test Categories
+# ============================================================================
 
-  cat >> "$RESULTS_FILE" <<EOF
-
----
-
-## Summary
-
-| Metric | Count |
-|--------|-------|
-| Total | $total |
-| Passed | $passed |
-| Warnings | $warned |
-| Failed | $failed |
-
-EOF
-
-  if [[ $failed -gt 0 ]]; then
-    echo -e "\n## Debug\n\nSee debug log: \`$DEBUG_FILE\`" >> "$RESULTS_FILE"
-  fi
-}
-
-# Reset counters
-reset_counters() {
-  PASSED=0
-  WARNED=0
-  FAILED=0
-  TOTAL=0
-}
-
-# Run edge-cases category
 run_edge_cases() {
-  reset_counters
-  setup_output "edge-cases"
-  log "Running edge-cases tests..."
+  setup_nav_category "edge-cases"
+  print_info "Running edge-cases tests..."
 
   # Navigate to test page first
   nav open "$TEST_URL" >/dev/null 2>&1
 
   # Test 1: Empty element ref
-  run_test 1 "Empty element ref" "click @" "invalid" true
+  run_nav_test 1 "Empty element ref" "click @" "invalid" "true"
 
   # Test 2: Malformed element ref
-  run_test 2 "Malformed element ref" "click @abc" "invalid" true
+  run_nav_test 2 "Malformed element ref" "click @abc" "invalid" "true"
 
   # Test 3: Negative element index
-  run_test 3 "Negative element index" "click @e-1" "invalid" true
+  run_nav_test 3 "Negative element index" "click @e-1" "invalid" "true"
 
   # Test 4: Very large element index
-  run_test 4 "Very large element index" "click @e99999999" "ELEMENT_NOT_FOUND" true
+  run_nav_test 4 "Very large element index" "click @e99999999" "ELEMENT_NOT_FOUND" "true"
 
   # Test 5: Click without target
-  run_test 5 "Click without target" "click 2>&1 || true" "missing|required|argument" true
+  run_nav_test 5 "Click without target" "click 2>&1 || true" "missing|required|argument" "true"
 
   # Test 6: Type without text
-  run_test 6 "Type without text" "type @e1 2>&1 || true" "missing|required|argument" true
+  run_nav_test 6 "Type without text" "type @e1 2>&1 || true" "missing|required|argument" "true"
 
   # Test 7: Navigate without URL
-  run_test 7 "Navigate without URL" "open 2>&1 || true" "missing|required|argument" true
+  run_nav_test 7 "Navigate without URL" "open 2>&1 || true" "missing|required|argument" "true"
 
   # Test 8: Success returns exit code 0
-  run_test 8 "Snap succeeds" "snap" "success.*true" false
+  run_nav_test 8 "Snap succeeds" "snap" "success.*true" "false"
 
-  # Test 9: JSON output is valid (use nav directly without debug wrapper)
+  # Test 9: JSON output is valid (custom test)
   local json_first_line
   json_first_line=$(nav snap 2>&1 | grep -v '^\[' | head -1)
   if [[ "$json_first_line" == "{"* ]]; then
-    echo "| 9 | Snap JSON valid | PASS | First line is JSON |" >> "$RESULTS_FILE"
-    pass "9. Snap JSON valid"
-    ((PASSED++))
+    record_custom_result 9 "Snap JSON valid" "PASS" "First line is JSON"
   else
-    echo "| 9 | Snap JSON valid | FAIL | First line: $json_first_line |" >> "$RESULTS_FILE"
-    fail "9. Snap JSON valid - First line: $json_first_line"
-    ((FAILED++))
+    record_custom_result 9 "Snap JSON valid" "FAIL" "First line: $json_first_line"
   fi
-  ((TOTAL++))
 
-  # Test 10: Rapid sequential commands
-  local seq_result
+  # Test 10: Rapid sequential commands (custom test)
   if nav snap >/dev/null 2>&1 && nav snap >/dev/null 2>&1 && nav snap >/dev/null 2>&1; then
-    echo "| 10 | Rapid sequential snaps | PASS | All 3 snaps succeeded |" >> "$RESULTS_FILE"
-    pass "10. Rapid sequential snaps"
-    ((PASSED++))
+    record_custom_result 10 "Rapid sequential snaps" "PASS" "All 3 snaps succeeded"
   else
-    echo "| 10 | Rapid sequential snaps | FAIL | Sequential snaps failed |" >> "$RESULTS_FILE"
-    fail "10. Rapid sequential snaps"
-    ((FAILED++))
+    record_custom_result 10 "Rapid sequential snaps" "FAIL" "Sequential snaps failed"
   fi
-  ((TOTAL++))
 
-  finalize_results $PASSED $WARNED $FAILED $TOTAL
-
-  echo ""
-  log "Results: $PASSED passed, $WARNED warnings, $FAILED failed (of $TOTAL)"
-  log "Report: $RESULTS_FILE"
-  log "Debug:  $DEBUG_FILE"
-
-  [[ $FAILED -eq 0 ]] && return 0 || return 1
+  finalize_category
 }
 
-# Run error-taxonomy category
 run_error_taxonomy() {
-  reset_counters
-  setup_output "error-taxonomy"
-  log "Running error-taxonomy tests..."
+  setup_nav_category "error-taxonomy"
+  print_info "Running error-taxonomy tests..."
 
   nav open "$TEST_URL" >/dev/null 2>&1
 
   # Test 1: ELEMENT_NOT_FOUND for invalid ref
-  run_test 1 "ELEMENT_NOT_FOUND" "click @e99999" "ELEMENT_NOT_FOUND" true
+  run_nav_test 1 "ELEMENT_NOT_FOUND" "click @e99999" "ELEMENT_NOT_FOUND" "true"
 
   # Test 2: TAB_NOT_FOUND for invalid tab
-  run_test 2 "TAB_NOT_FOUND" "tab b99" "TAB_NOT_FOUND|not found" true
+  run_nav_test 2 "TAB_NOT_FOUND" "tab b99" "TAB_NOT_FOUND|not found" "true"
 
   # Test 3: SELECTOR_INVALID for bad selector
-  run_test 3 "SELECTOR_INVALID" 'click "::invalid[["' "SELECTOR_INVALID|invalid" true
+  run_nav_test 3 "SELECTOR_INVALID" 'click "::invalid[["' "SELECTOR_INVALID|invalid" "true"
 
   # Test 4: Error response has errorCode field
-  run_test 4 "Error has errorCode" "click @e99999 2>&1" "errorCode" true
+  run_nav_test 4 "Error has errorCode" "click @e99999 2>&1" "errorCode" "true"
 
   # Test 5: Error response has retryable field
-  run_test 5 "Error has retryable" "click @e99999 2>&1" "retryable" true
+  run_nav_test 5 "Error has retryable" "click @e99999 2>&1" "retryable" "true"
 
-  finalize_results $PASSED $WARNED $FAILED $TOTAL
-
-  echo ""
-  log "Results: $PASSED passed, $WARNED warnings, $FAILED failed (of $TOTAL)"
-  log "Report: $RESULTS_FILE"
-  log "Debug:  $DEBUG_FILE"
-
-  [[ $FAILED -eq 0 ]] && return 0 || return 1
+  finalize_category
 }
 
+# ============================================================================
 # Main
+# ============================================================================
+
 main() {
   local category="" run_all=false
 
@@ -327,12 +266,15 @@ main() {
     exit 1
   fi
 
+  # Initialize test runner
+  init_test_runner "$OUTPUT_DIR" "Navigator CLI"
+
   check_server
 
-  log "Navigator CLI Test Runner"
-  log "Server: $SERVER_URL"
-  log "Test URL: $TEST_URL"
-  log "Output: $OUTPUT_DIR"
+  print_header "Navigator CLI Test Runner"
+  echo "Server:   $SERVER_URL"
+  echo "Test URL: $TEST_URL"
+  echo "Output:   $OUTPUT_DIR"
   echo ""
 
   local exit_code=0
@@ -351,9 +293,9 @@ main() {
 
   echo ""
   if [[ $exit_code -eq 0 ]]; then
-    log "${GREEN}All tests passed${NC}"
+    print_pass "All tests passed"
   else
-    log "${RED}Some tests failed${NC}"
+    print_fail "Some tests failed"
   fi
 
   exit $exit_code

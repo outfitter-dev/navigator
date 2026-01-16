@@ -1,3 +1,13 @@
+---
+name: cli-testing
+description: CLI testing guidance and patterns. Loaded by /ops/test/cli command or subagents for comprehensive Navigator CLI testing.
+compatibility: Requires bun and navigator-server running on :9334
+allowed-tools: Read Glob Grep Skill TodoWrite Bash(./.claude/scripts/run-tests.sh *) Bash(nav *) Bash(nav-dev *)
+metadata:
+  author: outfitter-dev
+  version: "1.0"
+---
+
 # Navigator CLI Testing
 
 Automated stress tests for Navigator CLI.
@@ -17,9 +27,10 @@ bun run dev
 
 ```
 .claude/
-├── commands/test/cli.md     # Command definition
-├── scripts/run-tests.sh     # Test runner (all logic here)
-└── skills/nav-cli/README.md # This file
+├── commands/ops/test/cli.md     # Command definition
+├── scripts/run-tests.sh         # Test runner (all logic here)
+├── scripts/lib/test-runner-lib.sh  # Shared test library
+└── skills/cli-testing/SKILL.md  # This file
 ```
 
 ## Test Categories
@@ -44,21 +55,19 @@ Edit `.claude/scripts/run-tests.sh`:
 
 ```bash
 # Add a test to existing category
-run_test 11 "New test name" "nav command" "expected_pattern" true  # true = expect error
+run_test 11 "New test name" "nav command" "expected_pattern" "true"  # true = expect error
 
 # Add new category
 run_new_category() {
-  reset_counters
-  setup_output "new-category"
+  setup_category "new-category"
   log "Running new-category tests..."
 
   nav open "$TEST_URL" >/dev/null 2>&1
 
-  run_test 1 "Test name" "command" "pattern" false
+  run_test 1 "Test name" "nav command" "pattern" "false"
   # ... more tests
 
-  finalize_results $PASSED $WARNED $FAILED $TOTAL
-  # ... standard footer
+  finalize_category
 }
 ```
 
