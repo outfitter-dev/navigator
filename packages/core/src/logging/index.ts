@@ -27,11 +27,13 @@
 // Configuration
 export {
 	configureLogging,
+	configureMcpLogging,
 	getLogger,
 	isConfigured,
 	resetLogging,
 	type LoggingOptions,
 	type LogLevelString,
+	type McpLoggingOptions,
 } from './config'
 
 // Categories
@@ -46,7 +48,9 @@ export {
 	createDevConsoleSink,
 	createFileSink,
 	createJsonConsoleSink,
+	createJsonStderrSink,
 	createSinks,
+	createStderrSink,
 	type CreateSinksOptions,
 	type Environment,
 	type FileSinkOptions,

@@ -98,6 +98,68 @@ const jsonFormatter: TextFormatter = (record: LogRecord): string => {
 // ============================================================================
 
 /**
+ * Stderr output stream for LogTape.
+ *
+ * Used for MCP servers where stdout is reserved for JSON-RPC protocol.
+ * All logging must go to stderr to avoid corrupting the protocol stream.
+ */
+function getStderrStream(): WritableStream<Uint8Array> {
+	return new WritableStream<Uint8Array>({
+		write(chunk: Uint8Array): void {
+			process.stderr.write(chunk)
+		},
+	})
+}
+
+/**
+ * Create a stderr sink for MCP servers.
+ *
+ * MCP servers communicate via stdout (JSON-RPC protocol), so all logging
+ * MUST go to stderr. This sink provides colored, human-readable output
+ * to stderr instead of stdout.
+ *
+ * @example Output (to stderr)
+ * ```
+ * 13:45:23.456 +00 [INF] navigator.mcp: MCP server started
+ * 13:45:23.789 +00 [DBG] navigator.mcp.tools: Executing action: snap
+ * ```
+ *
+ * @returns LogTape sink for stderr output
+ */
+export function createStderrSink(): Sink {
+	const formatter = getAnsiColorFormatter({
+		timestamp: 'time-tz',
+		level: 'ABBR',
+		category: (cats) => cats.join('.'),
+		timestampStyle: 'dim',
+		levelStyle: 'bold',
+		categoryStyle: 'dim',
+		levelColors: {
+			trace: null,
+			debug: 'cyan',
+			info: 'green',
+			warning: 'yellow',
+			error: 'red',
+			fatal: 'magenta',
+		},
+	})
+
+	return getStreamSink(getStderrStream(), { formatter })
+}
+
+/**
+ * Create a JSON stderr sink for MCP servers in production.
+ *
+ * Same as createStderrSink but outputs JSON lines format for log aggregation.
+ * All output goes to stderr to preserve stdout for MCP protocol.
+ *
+ * @returns LogTape sink for JSON stderr output
+ */
+export function createJsonStderrSink(): Sink {
+	return getStreamSink(getStderrStream(), { formatter: jsonFormatter })
+}
+
+/**
  * Create a development console sink with colored output.
  *
  * Features:

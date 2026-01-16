@@ -3,6 +3,7 @@ import {
 	CATEGORIES,
 	type LogLevelString,
 	configureLogging,
+	configureMcpLogging,
 	getLogger,
 	isConfigured,
 	resetLogging,
@@ -204,6 +205,100 @@ describe('configureLogging', () => {
 			await expect(configureLogging({ environment: 'test' })).rejects.toThrow(
 				'reset: true',
 			)
+		})
+	})
+})
+
+describe('configureMcpLogging', () => {
+	afterEach(async () => {
+		await resetLogging()
+	})
+
+	describe('basic configuration', () => {
+		test('configures successfully with defaults', async () => {
+			await configureMcpLogging({ reset: true })
+			expect(isConfigured()).toBe(true)
+		})
+
+		test('uses stderr sink (does not throw)', async () => {
+			await configureMcpLogging({ reset: true })
+			const logger = getLogger(CATEGORIES.MCP)
+			// Verify logger works without errors
+			expect(() => logger.info`MCP test message`).not.toThrow()
+		})
+	})
+
+	describe('level option', () => {
+		test('accepts debug level', async () => {
+			await configureMcpLogging({ level: 'debug', reset: true })
+			expect(isConfigured()).toBe(true)
+		})
+
+		test('accepts info level', async () => {
+			await configureMcpLogging({ level: 'info', reset: true })
+			expect(isConfigured()).toBe(true)
+		})
+
+		test('accepts warning level', async () => {
+			await configureMcpLogging({ level: 'warning', reset: true })
+			expect(isConfigured()).toBe(true)
+		})
+
+		test('accepts error level', async () => {
+			await configureMcpLogging({ level: 'error', reset: true })
+			expect(isConfigured()).toBe(true)
+		})
+
+		test('defaults to info level', async () => {
+			await configureMcpLogging({ reset: true })
+			// If it configures successfully, default was applied
+			expect(isConfigured()).toBe(true)
+		})
+	})
+
+	describe('jsonOutput option', () => {
+		test('accepts jsonOutput true', async () => {
+			await configureMcpLogging({ jsonOutput: true, reset: true })
+			expect(isConfigured()).toBe(true)
+		})
+
+		test('accepts jsonOutput false', async () => {
+			await configureMcpLogging({ jsonOutput: false, reset: true })
+			expect(isConfigured()).toBe(true)
+		})
+	})
+
+	describe('reset option', () => {
+		test('allows reconfiguration with reset true', async () => {
+			await configureMcpLogging({ level: 'debug', reset: true })
+			await configureMcpLogging({ level: 'info', reset: true })
+			expect(isConfigured()).toBe(true)
+		})
+
+		test('throws without reset when already configured', async () => {
+			await configureMcpLogging({ reset: true })
+			await expect(configureMcpLogging()).rejects.toThrow(
+				'Logging already configured',
+			)
+		})
+	})
+
+	describe('logging functionality', () => {
+		test('logger can log at configured level', async () => {
+			await configureMcpLogging({ level: 'debug', reset: true })
+			const logger = getLogger(CATEGORIES.MCP)
+			expect(() => {
+				logger.debug`Debug message`
+				logger.info`Info message`
+				logger.warn`Warning message`
+				logger.error`Error message`
+			}).not.toThrow()
+		})
+
+		test('MCP_TOOLS category logger works', async () => {
+			await configureMcpLogging({ level: 'debug', reset: true })
+			const logger = getLogger(CATEGORIES.MCP_TOOLS)
+			expect(() => logger.info`Tool invocation`).not.toThrow()
 		})
 	})
 })

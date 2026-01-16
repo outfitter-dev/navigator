@@ -7,7 +7,9 @@ import {
 	createDevConsoleSink,
 	createFileSink,
 	createJsonConsoleSink,
+	createJsonStderrSink,
 	createSinks,
+	createStderrSink,
 } from '../../src/logging/sinks'
 
 describe('createDevConsoleSink', () => {
@@ -33,6 +35,36 @@ describe('createJsonConsoleSink', () => {
 
 	test('returned sink is callable', () => {
 		const sink = createJsonConsoleSink()
+		expect(() => {
+			// Verify it's a valid sink function (has expected signature)
+			expect(sink.length).toBe(1)
+		}).not.toThrow()
+	})
+})
+
+describe('createStderrSink', () => {
+	test('returns a function', () => {
+		const sink = createStderrSink()
+		expect(typeof sink).toBe('function')
+	})
+
+	test('returned sink is callable', () => {
+		const sink = createStderrSink()
+		expect(() => {
+			// Verify it's a valid sink function (has expected signature)
+			expect(sink.length).toBe(1)
+		}).not.toThrow()
+	})
+})
+
+describe('createJsonStderrSink', () => {
+	test('returns a function', () => {
+		const sink = createJsonStderrSink()
+		expect(typeof sink).toBe('function')
+	})
+
+	test('returned sink is callable', () => {
+		const sink = createJsonStderrSink()
 		expect(() => {
 			// Verify it's a valid sink function (has expected signature)
 			expect(sink.length).toBe(1)

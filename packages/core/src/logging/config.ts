@@ -28,7 +28,12 @@ import {
 } from '@logtape/logtape'
 
 import type { Category } from './categories'
-import { type Environment, createSinks } from './sinks'
+import {
+	type Environment,
+	createJsonStderrSink,
+	createSinks,
+	createStderrSink,
+} from './sinks'
 
 // ============================================================================
 // Types
@@ -257,6 +262,107 @@ export async function configureLogging(
 		const message =
 			error instanceof Error ? error.message : 'Unknown error occurred'
 		throw new Error(`Failed to configure logging: ${message}`)
+	}
+
+	configured = true
+}
+
+// ============================================================================
+// MCP-Specific Configuration
+// ============================================================================
+
+/**
+ * Options for MCP logging configuration.
+ */
+export interface McpLoggingOptions {
+	/**
+	 * Log level for MCP loggers.
+	 * @default 'info'
+	 */
+	level?: LogLevelString
+
+	/**
+	 * Use JSON format instead of colored text.
+	 * @default false
+	 */
+	jsonOutput?: boolean
+
+	/**
+	 * Reset existing configuration before applying new one.
+	 * @default false
+	 */
+	reset?: boolean
+}
+
+/**
+ * Configure logging for MCP servers.
+ *
+ * MCP servers communicate via stdout (JSON-RPC protocol), so ALL logging
+ * MUST go to stderr. This function configures LogTape to use stderr-only
+ * sinks, ensuring no log output corrupts the MCP protocol stream.
+ *
+ * @param options - Configuration options
+ * @throws Error if already configured and reset is not true
+ *
+ * @example
+ * ```ts
+ * // At MCP server startup
+ * import { configureMcpLogging, getLogger, CATEGORIES } from '@outfitter/navigator-core/logging'
+ *
+ * await configureMcpLogging({ level: 'debug' })
+ *
+ * const logger = getLogger(CATEGORIES.MCP)
+ * logger.info`MCP server started`
+ * ```
+ */
+export async function configureMcpLogging(
+	options: McpLoggingOptions = {},
+): Promise<void> {
+	const { level = 'info', jsonOutput = false, reset = false } = options
+
+	// Prevent double-configuration unless reset is requested
+	if (configured && !reset) {
+		throw new Error(
+			'Logging already configured. Pass reset: true to reconfigure.',
+		)
+	}
+
+	// Create stderr sink (never stdout for MCP)
+	const stderrSink = jsonOutput ? createJsonStderrSink() : createStderrSink()
+
+	// Build logger configurations
+	const loggers: Array<{
+		category: string[]
+		lowestLevel: LogLevel
+		sinks: string[]
+	}> = [
+		// Root Navigator logger
+		{
+			category: ['navigator'],
+			lowestLevel: level,
+			sinks: ['stderr'],
+		},
+		// Suppress LogTape meta-logging unless errors
+		{
+			category: ['logtape', 'meta'],
+			lowestLevel: 'error',
+			sinks: ['stderr'],
+		},
+	]
+
+	// Configure LogTape with stderr-only sink
+	try {
+		await configure({
+			reset,
+			sinks: {
+				stderr: stderrSink,
+			},
+			loggers,
+		})
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.message : 'Unknown error occurred'
+		throw new Error(`Failed to configure MCP logging: ${message}`)
 	}
 
 	configured = true

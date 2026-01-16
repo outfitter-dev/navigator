@@ -13,6 +13,11 @@ import {
 	CallToolRequestSchema,
 	ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
+import {
+	CATEGORIES,
+	configureMcpLogging,
+	getLogger,
+} from '@outfitter/navigator-core/logging'
 import { executeAction } from './client'
 import { generateToolDescription } from './description'
 import {
@@ -23,6 +28,13 @@ import {
 	type SnapNode,
 	navigatorActionSchema,
 } from './schema'
+
+// ============================================================================
+// Logger
+// ============================================================================
+
+const logger = getLogger(CATEGORIES.MCP)
+const toolLogger = getLogger(CATEGORIES.MCP_TOOLS)
 
 // ============================================================================
 // Server Setup
@@ -253,21 +265,32 @@ function formatResult(result: ActionResult): ResponseContent[] {
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
 	if (request.params.name !== 'navigator') {
+		toolLogger.warning`Unknown tool requested: ${request.params.name}`
 		return {
 			content: [{ type: 'text', text: `Unknown tool: ${request.params.name}` }],
 			isError: true,
 		}
 	}
 
+	const args = request.params.arguments as Record<string, unknown>
+	const actionType = args?.action as string | undefined
+
 	try {
-		const action = navigatorActionSchema.parse(
-			request.params.arguments,
-		) as NavigatorAction
+		toolLogger.debug`Executing action: ${actionType}`
+		const action = navigatorActionSchema.parse(args) as NavigatorAction
 		const result = await executeAction(action)
 		const content = formatResult(result)
+
+		if (result.success) {
+			toolLogger.debug`Action completed: ${actionType}`
+		} else {
+			toolLogger.warning`Action failed: ${actionType} - ${result.error}`
+		}
+
 		return { content, isError: !result.success }
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error)
+		toolLogger.error`Action validation failed: ${actionType} - ${message}`
 		return {
 			content: [{ type: 'text', text: `Validation error: ${message}` }],
 			isError: true,
@@ -328,14 +351,21 @@ function formatNode(node: SnapNode, lines: string[], depth: number): void {
 // ============================================================================
 
 export async function startServer(): Promise<void> {
+	// Configure logging to stderr only (stdout is for MCP protocol)
+	await configureMcpLogging({
+		level: process.env.NAV_LOG_LEVEL === 'debug' ? 'debug' : 'info',
+	})
+
 	const transport = new StdioServerTransport()
 	await server.connect(transport)
-	console.error('navigator MCP server started')
+
+	logger.info`MCP server started`
 }
 
 // Auto-start when run directly
 if (import.meta.main) {
 	startServer().catch((error) => {
+		// Use console.error directly here since logging may not be configured
 		console.error('Fatal error:', error)
 		process.exit(1)
 	})
