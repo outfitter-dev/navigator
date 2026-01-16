@@ -8,7 +8,12 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse } from 'yaml'
 import { z } from 'zod'
+import { CATEGORIES, getLogger } from '../logging'
 import { getNavigatorConfigDir } from '../storage/paths'
+
+// Module-level logger for config loading
+// Safe to call before logging is configured - messages are discarded until setup
+const log = getLogger(CATEGORIES.CONFIG)
 
 // ============================================================================
 // Config Schema
@@ -133,8 +138,12 @@ export function loadConfig(): Config {
 		const parsed = parse(raw)
 		return ConfigSchema.parse(parsed)
 	} catch (error) {
-		// If parsing fails, return defaults
-		console.warn(`Failed to parse config at ${configPath}:`, error)
+		// If parsing fails, return defaults but always notify the user
+		// Write to stderr directly since logging may not be configured yet
+		const message = error instanceof Error ? error.message : String(error)
+		console.error(`[navigator] Warning: Failed to parse config at ${configPath}: ${message}`)
+		console.error('[navigator] Using default configuration')
+		log.warning`Failed to parse config at ${configPath}: ${error}`
 		return ConfigSchema.parse({})
 	}
 }
