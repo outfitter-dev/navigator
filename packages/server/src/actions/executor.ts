@@ -18,7 +18,11 @@ import type {
 	TabRef,
 	Viewport,
 } from '@outfitter/navigator-core'
-import { parseKeyCombo, resolveViewFlag } from '@outfitter/navigator-core'
+import {
+	ErrorCode,
+	parseKeyCombo,
+	resolveViewFlag,
+} from '@outfitter/navigator-core'
 import { CATEGORIES, getLogger } from '@outfitter/navigator-core/logging'
 import type { BrowserManager } from '../browser/manager'
 import { MarkerStore, markersToMarkdown } from '../markers'
@@ -44,6 +48,28 @@ type WaitState = 'visible' | 'hidden' | 'attached' | 'detached'
 // ============================================================================
 
 const NUMERIC_STRING_PATTERN = /^\d+$/
+
+// ============================================================================
+// Error Helper
+// ============================================================================
+
+/**
+ * Create a structured error result with code, retryable flag, and suggested fix.
+ */
+function createError(
+	message: string,
+	code: ErrorCode,
+	retryable: boolean,
+	suggestedFix?: string,
+): ActionResult {
+	return {
+		success: false,
+		error: message,
+		errorCode: code,
+		retryable,
+		suggestedFix,
+	}
+}
 
 // ============================================================================
 // Action Executor
@@ -430,7 +456,12 @@ export class ActionExecutor {
 	private async focusTab(ref: TabRef): Promise<ActionResult> {
 		const index = await this.resolveTabIndex(ref)
 		if (index === null) {
-			return { success: false, error: `Tab ${String(ref)} not found` }
+			return createError(
+				`Tab ${String(ref)} not found`,
+				ErrorCode.TAB_NOT_FOUND,
+				false,
+				'List available tabs with { action: "tabs" }',
+			)
 		}
 		const response = await this.browserManager.send({
 			action: 'tab_switch',
@@ -470,7 +501,12 @@ export class ActionExecutor {
 	private async closeTab(ref: TabRef): Promise<ActionResult> {
 		const index = await this.resolveTabIndex(ref)
 		if (index === null) {
-			return { success: false, error: `Tab ${String(ref)} not found` }
+			return createError(
+				`Tab ${String(ref)} not found`,
+				ErrorCode.TAB_NOT_FOUND,
+				false,
+				'List available tabs with { action: "tabs" }',
+			)
 		}
 		const response = await this.browserManager.send({
 			action: 'tab_close',
@@ -495,7 +531,12 @@ export class ActionExecutor {
 	): Promise<ActionResult> {
 		const target = this.resolveSelector(ref, selector)
 		if (!target) {
-			return { success: false, error: 'click requires ref or selector' }
+			return createError(
+				'click requires ref or selector',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide ref from snap (e.g., "e42") or CSS selector',
+			)
 		}
 
 		const response = await this.sendCommand(
@@ -518,7 +559,12 @@ export class ActionExecutor {
 	): Promise<ActionResult> {
 		const target = this.resolveSelector(ref, selector)
 		if (!target) {
-			return { success: false, error: 'type requires ref or selector' }
+			return createError(
+				'type requires ref or selector',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide ref from snap (e.g., "e42") or CSS selector',
+			)
 		}
 
 		const response = await this.sendCommand(
@@ -539,7 +585,12 @@ export class ActionExecutor {
 	): Promise<ActionResult> {
 		const target = this.resolveSelector(ref, selector)
 		if (!target) {
-			return { success: false, error: 'select requires ref or selector' }
+			return createError(
+				'select requires ref or selector',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide ref from snap (e.g., "e42") or CSS selector',
+			)
 		}
 
 		const response = await this.sendCommand(
@@ -559,7 +610,12 @@ export class ActionExecutor {
 	): Promise<ActionResult> {
 		const target = this.resolveSelector(ref, selector)
 		if (!target) {
-			return { success: false, error: 'hover requires ref or selector' }
+			return createError(
+				'hover requires ref or selector',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide ref from snap (e.g., "e42") or CSS selector',
+			)
 		}
 
 		const response = await this.sendCommand(
@@ -579,7 +635,12 @@ export class ActionExecutor {
 	): Promise<ActionResult> {
 		const target = this.resolveSelector(ref, selector)
 		if (!target) {
-			return { success: false, error: 'focus requires ref or selector' }
+			return createError(
+				'focus requires ref or selector',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide ref from snap (e.g., "e42") or CSS selector',
+			)
 		}
 
 		const response = await this.sendCommand(
@@ -638,7 +699,12 @@ export class ActionExecutor {
 	): Promise<ActionResult> {
 		const target = this.resolveSelector(ref, selector)
 		if (!target) {
-			return { success: false, error: 'fill requires ref or selector' }
+			return createError(
+				'fill requires ref or selector',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide ref from snap (e.g., "e42") or CSS selector',
+			)
 		}
 
 		const response = await this.sendCommand(
@@ -847,7 +913,12 @@ export class ActionExecutor {
 	): Promise<ActionResult> {
 		const target = this.resolveSelector(ref, selector)
 		if (!target) {
-			return { success: false, error: 'check requires ref or selector' }
+			return createError(
+				'check requires ref or selector',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide ref from snap (e.g., "e42") or CSS selector',
+			)
 		}
 
 		const response = await this.sendCommand(
@@ -867,7 +938,12 @@ export class ActionExecutor {
 	): Promise<ActionResult> {
 		const target = this.resolveSelector(ref, selector)
 		if (!target) {
-			return { success: false, error: 'uncheck requires ref or selector' }
+			return createError(
+				'uncheck requires ref or selector',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide ref from snap (e.g., "e42") or CSS selector',
+			)
 		}
 
 		const response = await this.sendCommand(
@@ -888,7 +964,12 @@ export class ActionExecutor {
 	): Promise<ActionResult> {
 		const target = this.resolveSelector(ref, selector)
 		if (!target) {
-			return { success: false, error: 'upload requires ref or selector' }
+			return createError(
+				'upload requires ref or selector',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide ref from snap (e.g., "e42") or CSS selector',
+			)
 		}
 
 		const response = await this.sendCommand(
@@ -930,7 +1011,12 @@ export class ActionExecutor {
 	): Promise<ActionResult> {
 		const target = this.resolveSelector(ref, selector)
 		if (!target) {
-			return { success: false, error: 'waitFor requires ref or selector' }
+			return createError(
+				'waitFor requires ref or selector',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide ref from snap (e.g., "e42") or CSS selector',
+			)
 		}
 
 		const response = await this.sendCommand(
@@ -938,10 +1024,25 @@ export class ActionExecutor {
 			tab,
 		)
 		if (!response.success) {
-			return {
-				success: false,
-				error: response.error ?? `Timeout waiting for element to be ${state}`,
+			const errorMsg = response.error ?? `Timeout waiting for element to be ${state}`
+			const lowerError = errorMsg.toLowerCase()
+
+			// Determine appropriate error code based on error message
+			let errorCode: ErrorCode = ErrorCode.NAVIGATION_TIMEOUT
+			let retryable = true
+			let recovery = 'Increase timeout or verify element exists with snap'
+
+			if (lowerError.includes('invalid selector') || lowerError.includes('syntax error')) {
+				errorCode = ErrorCode.SELECTOR_INVALID
+				retryable = false
+				recovery = 'Check selector syntax - use CSS or ref from snap'
+			} else if (lowerError.includes('stale') || lowerError.includes('detached')) {
+				errorCode = ErrorCode.STALE_REF
+				retryable = true
+				recovery = 'Element was removed from DOM - take a new snap and retry'
 			}
+
+			return createError(errorMsg, errorCode, retryable, recovery)
 		}
 		return { success: true }
 	}
@@ -955,10 +1056,12 @@ export class ActionExecutor {
 			tab,
 		)
 		if (!response.success) {
-			return {
-				success: false,
-				error: response.error ?? 'Timeout waiting for navigation',
-			}
+			return createError(
+				response.error ?? 'Timeout waiting for navigation',
+				ErrorCode.NAVIGATION_TIMEOUT,
+				true,
+				'Increase timeout or verify page is loading',
+			)
 		}
 		return { success: true }
 	}
@@ -1016,11 +1119,12 @@ export class ActionExecutor {
 		},
 	): Promise<ActionResult> {
 		if (this.isPairedActive()) {
-			return {
-				success: false,
-				error:
-					'snap is not available in paired mode. Use marker/html/text instead.',
-			}
+			return createError(
+				'snap is not available in paired mode. Use marker/html/text instead.',
+				ErrorCode.ACTION_NOT_SUPPORTED,
+				false,
+				'Use { action: "html" } or { action: "text" } in paired mode',
+			)
 		}
 
 		return this.withTab(tab, async () => {
@@ -1261,11 +1365,12 @@ export class ActionExecutor {
 		view?: string | undefined
 	}): Promise<ActionResult> {
 		if (this.isPairedActive()) {
-			return {
-				success: false,
-				error:
-					'snap is not available in paired mode. Use marker/html/text instead.',
-			}
+			return createError(
+				'snap is not available in paired mode. Use marker/html/text instead.',
+				ErrorCode.ACTION_NOT_SUPPORTED,
+				false,
+				'Use { action: "html" } or { action: "text" } in paired mode',
+			)
 		}
 
 		if (!action.view) {
@@ -1411,7 +1516,12 @@ export class ActionExecutor {
 		note?: string,
 	): Promise<ActionResult> {
 		if (!this.markerStore) {
-			return { success: false, error: 'No active session' }
+			return createError(
+				'No active session',
+				ErrorCode.SESSION_NOT_FOUND,
+				false,
+				'Start a session first by executing any action',
+			)
 		}
 
 		// Get page info
@@ -1495,7 +1605,12 @@ export class ActionExecutor {
 		format?: 'json' | 'markdown',
 	): Promise<ActionResult> {
 		if (!this.markerStore) {
-			return { success: false, error: 'No active session' }
+			return createError(
+				'No active session',
+				ErrorCode.SESSION_NOT_FOUND,
+				false,
+				'Start a session first by executing any action',
+			)
 		}
 
 		const markers = await this.markerStore.list()
@@ -1509,7 +1624,12 @@ export class ActionExecutor {
 
 	private async getMarker(id: string): Promise<ActionResult> {
 		if (!this.markerStore) {
-			return { success: false, error: 'No active session' }
+			return createError(
+				'No active session',
+				ErrorCode.SESSION_NOT_FOUND,
+				false,
+				'Start a session first by executing any action',
+			)
 		}
 
 		const marker = await this.markerStore.get(id)
@@ -1522,7 +1642,12 @@ export class ActionExecutor {
 
 	private async readMarkers(ids?: string[]): Promise<ActionResult> {
 		if (!this.markerStore) {
-			return { success: false, error: 'No active session' }
+			return createError(
+				'No active session',
+				ErrorCode.SESSION_NOT_FOUND,
+				false,
+				'Start a session first by executing any action',
+			)
 		}
 
 		let markers = await this.markerStore.list()
@@ -1536,7 +1661,12 @@ export class ActionExecutor {
 
 	private async deleteMarker(id: string): Promise<ActionResult> {
 		if (!this.markerStore) {
-			return { success: false, error: 'No active session' }
+			return createError(
+				'No active session',
+				ErrorCode.SESSION_NOT_FOUND,
+				false,
+				'Start a session first by executing any action',
+			)
 		}
 
 		const deleted = await this.markerStore.delete(id)
@@ -1552,7 +1682,12 @@ export class ActionExecutor {
 		id2: string,
 	): Promise<ActionResult> {
 		if (!this.markerStore) {
-			return { success: false, error: 'No active session' }
+			return createError(
+				'No active session',
+				ErrorCode.SESSION_NOT_FOUND,
+				false,
+				'Start a session first by executing any action',
+			)
 		}
 
 		const marker1 = await this.markerStore.get(id1)
@@ -1688,7 +1823,12 @@ export class ActionExecutor {
 	private async getSession(): Promise<ActionResult> {
 		const session = this.sessionManager.getCurrentSession()
 		if (!session) {
-			return { success: false, error: 'No active session' }
+			return createError(
+				'No active session',
+				ErrorCode.SESSION_NOT_FOUND,
+				false,
+				'Start a session first by executing any action',
+			)
 		}
 
 		const browserState = await this.browserManager.getSessionState()
@@ -1718,7 +1858,12 @@ export class ActionExecutor {
 			: this.sessionManager.getCurrentSession()
 
 		if (!session) {
-			return { success: false, error: 'Session not found' }
+			return createError(
+				'Session not found',
+				ErrorCode.SESSION_NOT_FOUND,
+				false,
+				'Start a new session or provide a valid session ID',
+			)
 		}
 
 		const logger = new StepLogger(

@@ -355,6 +355,22 @@ export type ActionCategory = keyof typeof ACTION_CATEGORIES
 // ============================================================================
 
 /**
+ * Structured error codes for categorizing Navigator errors.
+ */
+export type ErrorCode =
+	| 'ELEMENT_NOT_FOUND'
+	| 'ELEMENT_NOT_VISIBLE'
+	| 'ELEMENT_NOT_INTERACTABLE'
+	| 'TAB_NOT_FOUND'
+	| 'NAVIGATION_TIMEOUT'
+	| 'SELECTOR_INVALID'
+	| 'ACTION_NOT_SUPPORTED'
+	| 'SESSION_NOT_FOUND'
+	| 'PAIRED_NOT_CONNECTED'
+	| 'STALE_REF'
+	| 'AMBIGUOUS_TARGET'
+
+/**
  * Snapshot node in ARIA tree representation
  */
 export interface SnapNode {
@@ -383,6 +399,12 @@ export interface PageSnap {
 export interface ActionResult {
 	success: boolean
 	error?: string
+	/** Structured error code for programmatic handling */
+	errorCode?: ErrorCode
+	/** Whether the operation can be retried with a chance of success */
+	retryable?: boolean
+	/** Suggested fix or next action for the agent */
+	suggestedFix?: string
 	extractedContent?: string
 	domChanges?: string
 	screenshot?: string
