@@ -52,6 +52,8 @@ export {
 } from './result'
 
 export {
+	type LocatorStrategy,
+	LocatorStrategySchema,
 	SESSION_CONTINUATION_TIMEOUT_MS,
 	type SessionMeta,
 	SessionMetaSchema,

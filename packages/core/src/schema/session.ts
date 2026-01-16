@@ -24,6 +24,43 @@ export const SessionMetaSchema = z.object({
 export type SessionMeta = z.infer<typeof SessionMetaSchema>
 
 // ============================================================================
+// Locator Strategy Schema
+// ============================================================================
+
+/**
+ * Locator strategy for replay-friendly element targeting.
+ *
+ * Captures how to find an element using stable identifiers rather than
+ * ephemeral snapshot refs. Strategies are prioritized:
+ * 1. testid - Most stable (data-testid attribute)
+ * 2. role - ARIA role with accessible name
+ * 3. label - Associated label text
+ * 4. selector - CSS selector fallback
+ */
+export const LocatorStrategySchema = z.discriminatedUnion('strategy', [
+	z.object({
+		strategy: z.literal('role'),
+		role: z.string(),
+		name: z.string().optional(),
+		nth: z.number().optional(),
+	}),
+	z.object({
+		strategy: z.literal('testid'),
+		testid: z.string(),
+	}),
+	z.object({
+		strategy: z.literal('selector'),
+		selector: z.string(),
+	}),
+	z.object({
+		strategy: z.literal('label'),
+		label: z.string(),
+	}),
+])
+
+export type LocatorStrategy = z.infer<typeof LocatorStrategySchema>
+
+// ============================================================================
 // Step Schema
 // ============================================================================
 
@@ -48,6 +85,7 @@ export const StepSchema = z.object({
 	result: StepResultSchema,
 	duration: z.number(), // ms
 	source: StepSourceSchema.optional(),
+	locator: LocatorStrategySchema.optional(),
 })
 
 export type Step = z.infer<typeof StepSchema>
