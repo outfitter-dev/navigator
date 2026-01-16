@@ -36,6 +36,24 @@ export const GeometrySchema = z.discriminatedUnion('type', [
 export type Geometry = z.infer<typeof GeometrySchema>
 
 // ============================================================================
+// Marker Viewport Context
+// ============================================================================
+
+/**
+ * Viewport context captured when a marker is created.
+ * Enables "scroll to same position" use cases and viewport normalization.
+ */
+export const MarkerViewportSchema = z.object({
+	width: z.number(),
+	height: z.number(),
+	scrollX: z.number(),
+	scrollY: z.number(),
+	devicePixelRatio: z.number(),
+})
+
+export type MarkerViewport = z.infer<typeof MarkerViewportSchema>
+
+// ============================================================================
 // Marker Schema
 // ============================================================================
 
@@ -48,6 +66,7 @@ export const MarkerSchema = z.object({
 	geometry: GeometrySchema,
 	note: z.string().optional(),
 	screenshot: z.string().optional(), // base64 or file path
+	viewport: MarkerViewportSchema.optional(),
 })
 
 export type Marker = z.infer<typeof MarkerSchema>
@@ -62,4 +81,5 @@ export interface MarkerCreateInput {
 	geometry: Geometry
 	note?: string | undefined
 	screenshot?: string | undefined
+	viewport?: MarkerViewport | undefined
 }

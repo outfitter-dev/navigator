@@ -50,6 +50,7 @@ export class MarkerStore {
 			geometry: input.geometry,
 			note: input.note,
 			screenshot: input.screenshot,
+			viewport: input.viewport,
 		}
 
 		// Validate
