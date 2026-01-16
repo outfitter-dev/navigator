@@ -8,10 +8,5 @@
 		"url": "https://github.com/outfitter-dev"
 	},
 	"repository": "https://github.com/outfitter-dev/navigator",
-	"license": "MIT",
-	"agents": "./agents/",
-	"skills": "./skills/",
-	"commands": "./commands/",
-	"hooks": "./hooks/",
-	"mcpServers": "./.mcp.json"
+	"license": "MIT"
 }
