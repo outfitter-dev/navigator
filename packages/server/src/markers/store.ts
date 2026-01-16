@@ -17,6 +17,9 @@ import {
 	getMarkerPath,
 	getMarkersDir,
 } from '@outfitter/navigator-core'
+import { CATEGORIES, getLogger } from '@outfitter/navigator-core/logging'
+
+const log = getLogger(CATEGORIES.MARKERS)
 
 /**
  * Store for managing markers within a session.
@@ -63,6 +66,7 @@ export class MarkerStore {
 		)
 		await writeFile(markerPath, JSON.stringify(marker, null, 2), 'utf8')
 
+		log.debug`Marker created ${{ id: marker.id, type: marker.geometry.type }}`
 		return marker
 	}
 
@@ -75,9 +79,11 @@ export class MarkerStore {
 	async get(markerId: string): Promise<Marker | null> {
 		const markerPath = getMarkerPath(this.projectRoot, this.sessionId, markerId)
 		if (!existsSync(markerPath)) {
+			log.debug`Marker not found ${{ id: markerId }}`
 			return null
 		}
 		const raw = await readFile(markerPath, 'utf8')
+		log.debug`Marker retrieved ${{ id: markerId }}`
 		return MarkerSchema.parse(JSON.parse(raw))
 	}
 
@@ -104,10 +110,12 @@ export class MarkerStore {
 		}
 
 		// Sort by timestamp (newest first)
-		return markers.sort(
+		const sorted = markers.sort(
 			(a, b) =>
 				new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
 		)
+		log.debug`Markers listed ${{ count: sorted.length }}`
+		return sorted
 	}
 
 	/**
@@ -133,6 +141,7 @@ export class MarkerStore {
 		const markerPath = getMarkerPath(this.projectRoot, this.sessionId, markerId)
 		await writeFile(markerPath, JSON.stringify(updated, null, 2), 'utf8')
 
+		log.debug`Marker updated ${{ id: markerId }}`
 		return updated
 	}
 
@@ -145,9 +154,11 @@ export class MarkerStore {
 	async delete(markerId: string): Promise<boolean> {
 		const markerPath = getMarkerPath(this.projectRoot, this.sessionId, markerId)
 		if (!existsSync(markerPath)) {
+			log.debug`Marker not found for deletion ${{ id: markerId }}`
 			return false
 		}
 		unlinkSync(markerPath)
+		log.debug`Marker deleted ${{ id: markerId }}`
 		return true
 	}
 

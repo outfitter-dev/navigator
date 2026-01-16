@@ -19,6 +19,7 @@ import {
 	type Viewport,
 	hashUrl,
 } from '@outfitter/navigator-core'
+import { CATEGORIES, getLogger } from '@outfitter/navigator-core/logging'
 
 // ============================================================================
 // Types
@@ -100,6 +101,8 @@ async function runAgentBrowserCli(
 // Browser Manager
 // ============================================================================
 
+const log = getLogger(CATEGORIES.BROWSER)
+
 /**
  * Manages browser instances via agent-browser.
  */
@@ -146,6 +149,9 @@ export class BrowserManager {
 	async setMode(target: BrowserMode): Promise<void> {
 		if (target === this.mode) return
 
+		const previousMode = this.mode
+		log.info`Mode changing ${{ from: previousMode, to: target }}`
+
 		if (target === 'paired') {
 			await this.close()
 			this.mode = target
@@ -162,12 +168,14 @@ export class BrowserManager {
 	 * Close the browser.
 	 */
 	async close(): Promise<void> {
+		log.info`Browser closing`
 		try {
 			await this.sendRaw({ action: 'close' })
 		} catch {
 			// Ignore shutdown errors
 		}
 		this.ready = false
+		log.debug`Browser closed`
 	}
 
 	/**
@@ -258,17 +266,21 @@ export class BrowserManager {
 		await this.ensureDaemon()
 
 		if (!this.ready) {
+			log.debug`Launching browser ${{ mode: this.mode }}`
 			await this.sendRaw({
 				action: 'launch',
 				headless: this.mode === 'headless',
 				viewport: { width: 1280, height: 720 },
 			})
 			this.ready = true
+			log.info`Browser launched ${{ mode: this.mode }}`
 		}
 	}
 
 	private async ensureDaemon(): Promise<void> {
 		if (await this.canConnect()) return
+
+		log.debug`Starting agent-browser daemon ${{ session: this.session }}`
 
 		const args = ['--json', '--session', this.session]
 		if (this.mode === 'windowed') {
@@ -279,10 +291,14 @@ export class BrowserManager {
 		await runAgentBrowserCli(args, { AGENT_BROWSER_SESSION: this.session })
 
 		for (let attempt = 0; attempt < SOCKET_READY_RETRIES; attempt++) {
-			if (await this.canConnect()) return
+			if (await this.canConnect()) {
+				log.debug`Daemon connected ${{ session: this.session, attempt }}`
+				return
+			}
 			await delay(SOCKET_READY_DELAY_MS)
 		}
 
+		log.error`Daemon failed to start ${{ session: this.session }}`
 		throw new Error('agent-browser daemon failed to start')
 	}
 

@@ -18,6 +18,7 @@ import type {
 	Viewport,
 } from '@outfitter/navigator-core'
 import { parseKeyCombo, resolveViewFlag } from '@outfitter/navigator-core'
+import { CATEGORIES, getLogger } from '@outfitter/navigator-core/logging'
 import type { BrowserManager } from '../browser/manager'
 import { MarkerStore, markersToMarkdown } from '../markers'
 import type { PairedManager } from '../paired/manager'
@@ -46,6 +47,8 @@ const NUMERIC_STRING_PATTERN = /^\d+$/
 // ============================================================================
 // Action Executor
 // ============================================================================
+
+const log = getLogger(CATEGORIES.ACTIONS)
 
 /**
  * Executes Navigator actions.
@@ -90,6 +93,8 @@ export class ActionExecutor {
 		const start = Date.now()
 		const target = this.extractActionTarget(action)
 
+		log.debug`Action received ${{ action: action.action, target }}`
+
 		// Broadcast action start
 		this.broadcastEvent({
 			ts: new Date().toISOString(),
@@ -105,13 +110,20 @@ export class ActionExecutor {
 		try {
 			result = await this.run(action)
 		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : String(error)
+			log.error`Action failed ${{ action: action.action, error: errorMessage }}`
 			result = {
 				success: false,
-				error: error instanceof Error ? error.message : String(error),
+				error: errorMessage,
 			}
 		}
 
 		const duration = Date.now() - start
+
+		if (result.success) {
+			log.debug`Action completed ${{ action: action.action, duration }}`
+		}
 
 		// Broadcast action result
 		this.broadcastEvent({
@@ -148,8 +160,10 @@ export class ActionExecutor {
 	private async run(action: Action): Promise<ActionResult> {
 		// Forward to paired mode if active
 		if (this.isPairedActive() && this.shouldForwardToPaired(action)) {
+			log.debug`Routing to paired mode ${{ action: action.action }}`
 			return this.pairedManager.execute(action)
 		}
+		log.debug`Routing to headless mode ${{ action: action.action }}`
 
 		switch (action.action) {
 			// Navigation

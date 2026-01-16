@@ -19,6 +19,7 @@ import {
 	type Viewport,
 	hashUrl,
 } from '@outfitter/navigator-core'
+import { CATEGORIES, getLogger } from '@outfitter/navigator-core/logging'
 import type { ServerWebSocket } from 'bun'
 import { type WatchEvent, watchBroadcaster } from '../watch'
 
@@ -88,6 +89,8 @@ type PairedSocket = ServerWebSocket<unknown>
 // Paired Manager
 // ============================================================================
 
+const log = getLogger(CATEGORIES.PAIRED)
+
 /**
  * Manages the connection to browser extensions in paired mode.
  */
@@ -114,6 +117,7 @@ export class PairedManager {
 	 */
 	handleOpen(socket: PairedSocket): void {
 		this.sockets.add(socket)
+		log.info`Extension connected ${{ clientCount: this.sockets.size }}`
 	}
 
 	/**
@@ -178,7 +182,9 @@ export class PairedManager {
 	 */
 	handleClose(socket: PairedSocket): void {
 		this.sockets.delete(socket)
+		log.info`Extension disconnected ${{ clientCount: this.sockets.size }}`
 		if (this.sockets.size === 0) {
+			log.debug`All extensions disconnected, clearing state`
 			this.tabsByRef.clear()
 			this.tabIdByRef.clear()
 			this.activeRef = null
@@ -229,11 +235,14 @@ export class PairedManager {
 	 */
 	async execute(action: Action): Promise<ActionResult> {
 		if (!this.isConnected()) {
+			log.debug`No extension connected for action ${{ action: action.action }}`
 			return { success: false, error: 'No extension connected' }
 		}
 
 		const tabId = this.resolveTabIdFromAction(action)
 		const requestId = this.createRequestId()
+
+		log.debug`Forwarding action to extension ${{ action: action.action, requestId, tabId }}`
 
 		const payload = {
 			type: 'action',
@@ -252,6 +261,7 @@ export class PairedManager {
 		const result = await new Promise<ActionResult>((resolve, reject) => {
 			const timeout = setTimeout(() => {
 				this.pendingActions.delete(requestId)
+				log.error`Action timed out ${{ action: action.action, requestId }}`
 				reject(new Error('Extension action timed out'))
 			}, this.requestTimeoutMs)
 
@@ -259,6 +269,7 @@ export class PairedManager {
 			socket.send(JSON.stringify(payload))
 		})
 
+		log.debug`Action result received ${{ action: action.action, success: result.success }}`
 		return result
 	}
 
@@ -358,6 +369,8 @@ export class PairedManager {
 				this.activeRef = ref
 			}
 		})
+
+		log.debug`Tab state synced ${{ tabCount: tabs.length, activeRef: this.activeRef }}`
 	}
 
 	/**

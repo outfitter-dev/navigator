@@ -13,6 +13,11 @@ import {
 	ActionSchema,
 	loadConfig,
 } from '@outfitter/navigator-core'
+import {
+	CATEGORIES,
+	configureLogging,
+	getLogger,
+} from '@outfitter/navigator-core/logging'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
@@ -39,6 +44,14 @@ interface WebSocketData {
 }
 
 let state: AppState | null = null
+
+// Initialize logging before other configuration
+await configureLogging({
+	environment:
+		process.env.NODE_ENV === 'production' ? 'production' : 'development',
+})
+const log = getLogger(CATEGORIES.SERVER)
+
 const config = await loadConfig()
 
 function initializeState(): AppState {
@@ -193,13 +206,13 @@ const server = Bun.serve<WebSocketData>({
 	},
 })
 
-console.log(`Navigator server starting on http://${host}:${port}`)
+log.info`Server starting on ${{ host, port }}`
 
 export default server
 
 // Cleanup on shutdown
 process.on('SIGINT', async () => {
-	console.log('\nShutting down Navigator server...')
+	log.info`Server shutting down ${{ signal: 'SIGINT' }}`
 	if (state) {
 		await state.browserManager.close()
 	}
@@ -207,7 +220,7 @@ process.on('SIGINT', async () => {
 })
 
 process.on('SIGTERM', async () => {
-	console.log('\nShutting down Navigator server...')
+	log.info`Server shutting down ${{ signal: 'SIGTERM' }}`
 	if (state) {
 		await state.browserManager.close()
 	}
