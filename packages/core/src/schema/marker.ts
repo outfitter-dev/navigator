@@ -65,7 +65,7 @@ export const MarkerSchema = z.object({
 	title: z.string(),
 	geometry: GeometrySchema,
 	note: z.string().optional(),
-	screenshot: z.string().optional(), // base64 or file path
+	screenshotPath: z.string().optional(), // Relative path to screenshot file
 	viewport: MarkerViewportSchema.optional(),
 })
 

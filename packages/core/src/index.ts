@@ -46,6 +46,8 @@ export {
 	getDataHome,
 	getMarkerPath,
 	getMarkersDir,
+	getMarkerScreenshotsDir,
+	getMarkerScreenshotPath,
 	getNavigatorCacheDir,
 	getNavigatorConfigDir,
 	getNavigatorDataDir,

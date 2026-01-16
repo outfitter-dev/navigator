@@ -7,14 +7,15 @@
  */
 
 import type { Marker } from '@outfitter/navigator-core'
+import type { MarkerWithScreenshot } from './store'
 
 /**
  * Convert multiple markers to markdown.
  *
- * @param markers - Array of markers
+ * @param markers - Array of markers (may include loaded screenshot data)
  * @returns Markdown string
  */
-export function markersToMarkdown(markers: Marker[]): string {
+export function markersToMarkdown(markers: MarkerWithScreenshot[]): string {
 	if (markers.length === 0) {
 		return '_No markers_'
 	}
@@ -41,13 +42,15 @@ export function markersToMarkdown(markers: Marker[]): string {
 			lines.push(`> ${marker.note}`)
 		}
 
+		// Handle loaded screenshot data (base64) or just show path reference
 		if (marker.screenshot) {
+			// Loaded screenshot data (base64)
 			lines.push('')
-			if (marker.screenshot.startsWith('data:')) {
-				lines.push(`![Marker screenshot](${marker.screenshot})`)
-			} else {
-				lines.push(`_Screenshot saved: ${marker.screenshot}_`)
-			}
+			lines.push(`![Marker screenshot](${marker.screenshot})`)
+		} else if (marker.screenshotPath) {
+			// Just the path reference (not loaded)
+			lines.push('')
+			lines.push(`_Screenshot: ${marker.screenshotPath}_`)
 		}
 
 		lines.push('')
@@ -61,10 +64,10 @@ export function markersToMarkdown(markers: Marker[]): string {
 /**
  * Convert a single marker to markdown.
  *
- * @param marker - Marker to convert
+ * @param marker - Marker to convert (may include loaded screenshot data)
  * @returns Markdown string
  */
-export function markerToMarkdown(marker: Marker): string {
+export function markerToMarkdown(marker: MarkerWithScreenshot): string {
 	return markersToMarkdown([marker])
 }
 

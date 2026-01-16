@@ -171,6 +171,39 @@ export function getMarkersDir(projectPath: string, sessionId: string): string {
 	return join(getSessionDir(projectPath, sessionId), 'markers')
 }
 
+/**
+ * Get marker screenshots directory within a session.
+ * ~/.local/share/navigator/{project-hash}/sessions/{session-id}/markers/screenshots/
+ *
+ * @param projectPath - Absolute path to project root
+ * @param sessionId - Session UUID
+ */
+export function getMarkerScreenshotsDir(
+	projectPath: string,
+	sessionId: string,
+): string {
+	return join(getMarkersDir(projectPath, sessionId), 'screenshots')
+}
+
+/**
+ * Get marker screenshot file path.
+ * ~/.local/share/navigator/{project-hash}/sessions/{session-id}/markers/screenshots/{marker-id}.png
+ *
+ * @param projectPath - Absolute path to project root
+ * @param sessionId - Session UUID
+ * @param markerId - Marker UUID
+ */
+export function getMarkerScreenshotPath(
+	projectPath: string,
+	sessionId: string,
+	markerId: string,
+): string {
+	return join(
+		getMarkerScreenshotsDir(projectPath, sessionId),
+		`${markerId}.png`,
+	)
+}
+
 // ============================================================================
 // File Paths within Session
 // ============================================================================

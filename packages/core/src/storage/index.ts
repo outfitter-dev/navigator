@@ -24,6 +24,8 @@ export {
 	// Marker paths
 	getMarkerPath,
 	getMarkersDir,
+	getMarkerScreenshotsDir,
+	getMarkerScreenshotPath,
 	// Session file paths
 	getSessionMetaPath,
 	getStepsPath,

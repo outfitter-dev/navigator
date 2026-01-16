@@ -322,9 +322,9 @@ export class ActionExecutor {
 			case 'markers':
 				return this.listMarkers(action.format)
 			case 'markerGet':
-				return this.getMarker(action.id)
+				return this.getMarker(action.id, action.includeScreenshot)
 			case 'markerRead':
-				return this.readMarkers(action.ids)
+				return this.readMarkers(action.ids, action.includeScreenshot)
 			case 'markerDelete':
 				return this.deleteMarker(action.id)
 			case 'markerCompare':
@@ -1622,7 +1622,10 @@ export class ActionExecutor {
 		return { success: true, data: markers }
 	}
 
-	private async getMarker(id: string): Promise<ActionResult> {
+	private async getMarker(
+		id: string,
+		includeScreenshot?: boolean,
+	): Promise<ActionResult> {
 		if (!this.markerStore) {
 			return createError(
 				'No active session',
@@ -1632,7 +1635,7 @@ export class ActionExecutor {
 			)
 		}
 
-		const marker = await this.markerStore.get(id)
+		const marker = await this.markerStore.get(id, { includeScreenshot })
 		if (!marker) {
 			return { success: false, error: `Marker not found: ${id}` }
 		}
@@ -1640,7 +1643,10 @@ export class ActionExecutor {
 		return { success: true, data: marker }
 	}
 
-	private async readMarkers(ids?: string[]): Promise<ActionResult> {
+	private async readMarkers(
+		ids?: string[],
+		includeScreenshot?: boolean,
+	): Promise<ActionResult> {
 		if (!this.markerStore) {
 			return createError(
 				'No active session',
@@ -1650,7 +1656,7 @@ export class ActionExecutor {
 			)
 		}
 
-		let markers = await this.markerStore.list()
+		let markers = await this.markerStore.list({ includeScreenshot })
 
 		if (ids && ids.length > 0) {
 			markers = markers.filter((m) => ids.includes(m.id))
