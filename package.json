@@ -13,6 +13,7 @@
 		"format": "biome format --write .",
 		"test": "bun test",
 		"test:cli": "./.claude/scripts/run-tests.sh --all",
+		"test:mcp": "./.claude/scripts/run-mcp-tests.sh --all",
 		"clean": "rm -rf packages/*/dist .scratch/testing",
 		"clean:test": "rm -rf .scratch/testing"
 	},
