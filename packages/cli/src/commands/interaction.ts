@@ -13,6 +13,35 @@ import type { NavigatorClient } from '../client.js'
 /** Matches element refs like e42 or e42_1 or @e42 */
 const ELEMENT_REF_REGEX = /^@?e\d+(?:_\d+)?$/
 
+/** Result type for action execution */
+interface ActionResult {
+	success: boolean
+	error?: string
+	errorCode?: string
+	retryable?: boolean
+	suggestedFix?: string
+}
+
+/**
+ * Check if result is an error and handle it.
+ * Returns true if there was an error (caller should not print success message).
+ */
+function handleActionResult(result: unknown): boolean {
+	const r = result as ActionResult
+	if (r && r.success === false) {
+		console.error(`Error: ${r.error ?? 'Unknown error'}`)
+		if (r.errorCode) {
+			console.error(`  Code: ${r.errorCode}`)
+		}
+		if (r.suggestedFix) {
+			console.error(`  Fix: ${r.suggestedFix}`)
+		}
+		process.exitCode = 1
+		return true
+	}
+	return false
+}
+
 /** Snap result with optional multi-viewport data */
 interface SnapResult {
 	tree?: string
@@ -138,12 +167,14 @@ export function registerInteractionCommands(
 		.action(async (target: string, options) => {
 			const client = getClient()
 			const parsedTarget = parseTarget(target)
-			await client.execute({
+			const result = await client.execute({
 				action: 'click',
 				...parsedTarget,
 				clickCount: options.dbl ? 2 : 1,
 			})
-			console.log('Clicked:', target)
+			if (!handleActionResult(result)) {
+				console.log('Clicked:', target)
+			}
 		})
 
 	// nav type <ref|selector> <text>
@@ -154,13 +185,15 @@ export function registerInteractionCommands(
 		.action(async (target: string, text: string, options) => {
 			const client = getClient()
 			const parsedTarget = parseTarget(target)
-			await client.execute({
+			const result = await client.execute({
 				action: 'type',
 				...parsedTarget,
 				text,
 				clear: options.clear,
 			})
-			console.log('Typed into:', target)
+			if (!handleActionResult(result)) {
+				console.log('Typed into:', target)
+			}
 		})
 
 	// nav press <key-combo>
@@ -192,12 +225,14 @@ export function registerInteractionCommands(
 		.action(async (target: string, text: string) => {
 			const client = getClient()
 			const parsedTarget = parseTarget(target)
-			await client.execute({
+			const result = await client.execute({
 				action: 'fill',
 				...parsedTarget,
 				value: text,
 			})
-			console.log('Filled:', target)
+			if (!handleActionResult(result)) {
+				console.log('Filled:', target)
+			}
 		})
 
 	// nav select <ref|selector> <value>
@@ -207,12 +242,14 @@ export function registerInteractionCommands(
 		.action(async (target: string, value: string) => {
 			const client = getClient()
 			const parsedTarget = parseTarget(target)
-			await client.execute({
+			const result = await client.execute({
 				action: 'select',
 				...parsedTarget,
 				value,
 			})
-			console.log('Selected:', value, 'in', target)
+			if (!handleActionResult(result)) {
+				console.log('Selected:', value, 'in', target)
+			}
 		})
 
 	// nav hover <ref|selector>
@@ -222,11 +259,13 @@ export function registerInteractionCommands(
 		.action(async (target: string) => {
 			const client = getClient()
 			const parsedTarget = parseTarget(target)
-			await client.execute({
+			const result = await client.execute({
 				action: 'hover',
 				...parsedTarget,
 			})
-			console.log('Hovering:', target)
+			if (!handleActionResult(result)) {
+				console.log('Hovering:', target)
+			}
 		})
 
 	// nav scroll <direction> [amount]
@@ -349,11 +388,13 @@ export function registerInteractionCommands(
 		.action(async (target: string) => {
 			const client = getClient()
 			const parsedTarget = parseTarget(target)
-			await client.execute({
+			const result = await client.execute({
 				action: 'check',
 				...parsedTarget,
 			})
-			console.log('Checked:', target)
+			if (!handleActionResult(result)) {
+				console.log('Checked:', target)
+			}
 		})
 
 	// nav interact uncheck <ref|selector>
@@ -363,11 +404,13 @@ export function registerInteractionCommands(
 		.action(async (target: string) => {
 			const client = getClient()
 			const parsedTarget = parseTarget(target)
-			await client.execute({
+			const result = await client.execute({
 				action: 'uncheck',
 				...parsedTarget,
 			})
-			console.log('Unchecked:', target)
+			if (!handleActionResult(result)) {
+				console.log('Unchecked:', target)
+			}
 		})
 
 	// nav interact upload <ref|selector> <files...>
@@ -379,12 +422,14 @@ export function registerInteractionCommands(
 			const parsedTarget = parseTarget(target)
 			// Resolve file paths to absolute
 			const resolvedFiles = files.map((f) => resolve(f))
-			await client.execute({
+			const result = await client.execute({
 				action: 'upload',
 				...parsedTarget,
 				files: resolvedFiles,
 			})
-			console.log('Uploaded to:', target, 'files:', resolvedFiles.join(', '))
+			if (!handleActionResult(result)) {
+				console.log('Uploaded to:', target, 'files:', resolvedFiles.join(', '))
+			}
 		})
 
 	// nav interact dialog <action> [value]
