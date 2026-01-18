@@ -317,11 +317,47 @@ test_action_routing() {
   setup_output "action-routing"
   log "Running action-routing tests..."
 
-  # TODO: Add action routing tests
-  # - Navigate action routes correctly
-  # - Snap action routes correctly
-  # - Click action routes correctly
-  # - Unknown action rejected
+  # Test 1: Navigation - navigate to example.com
+  run_mcp_test 1 "Navigate to example.com" \
+    '{"action":"navigate","url":"https://example.com"}' \
+    "" \
+    false
+
+  # Test 2: Capture - snap (after navigate)
+  run_mcp_test 2 "Snap page state" \
+    '{"action":"snap"}' \
+    "" \
+    false
+
+  # Test 3: Capture - screenshot
+  run_mcp_test 3 "Take screenshot" \
+    '{"action":"screenshot"}' \
+    "" \
+    false
+
+  # Test 4: Tabs - list tabs
+  run_mcp_test 4 "List open tabs" \
+    '{"action":"tabs"}' \
+    "" \
+    false
+
+  # Test 5: Wait - wait 100ms
+  run_mcp_test 5 "Wait 100ms" \
+    '{"action":"wait","ms":100}' \
+    "" \
+    false
+
+  # Test 6: Interaction - scroll down (y=100)
+  run_mcp_test 6 "Scroll down" \
+    '{"action":"scroll","y":100}' \
+    "" \
+    false
+
+  # Test 7: Display - set viewport
+  run_mcp_test 7 "Set viewport 1280x720" \
+    '{"action":"viewport","width":1280,"height":720}' \
+    "" \
+    false
 
   finalize_results $PASSED $WARNED $FAILED $TOTAL
 
