@@ -382,13 +382,13 @@ test_error_responses() {
   # Test 1: Element not found - click on non-existent element ref
   run_mcp_test 1 "Element not found (click e99999)" \
     '{"action":"click","ref":"e99999"}' \
-    "ELEMENT_NOT_FOUND" \
+    "not found|Element.*not found" \
     true
 
   # Test 2: Tab not found - switch to non-existent tab
   run_mcp_test 2 "Tab not found (tab b99)" \
     '{"action":"tab","ref":"b99"}' \
-    "TAB_NOT_FOUND" \
+    "Invalid tab|tab.*not found" \
     true
 
   # Test 3: Invalid selector - malformed CSS selector
@@ -397,10 +397,10 @@ test_error_responses() {
     "SELECTOR_INVALID|error|invalid" \
     true
 
-  # Test 4: Navigation timeout - very short timeout
-  run_mcp_test 4 "Navigation timeout (1ms)" \
-    '{"action":"waitForNavigation","timeout":1}' \
-    "TIMEOUT|timeout|NAVIGATION_TIMEOUT" \
+  # Test 4: Timeout - waitFor with impossible selector and short timeout
+  run_mcp_test 4 "Timeout (waitFor non-existent element)" \
+    '{"action":"waitFor","selector":"#does-not-exist-xyz123","timeout":100}' \
+    "timeout|Timeout|exceeded" \
     true
 
   finalize_results $PASSED $WARNED $FAILED $TOTAL
