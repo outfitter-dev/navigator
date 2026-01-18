@@ -375,11 +375,33 @@ test_error_responses() {
   setup_output "error-responses"
   log "Running error-responses tests..."
 
-  # TODO: Add error response tests
-  # - ELEMENT_NOT_FOUND error code
-  # - TAB_NOT_FOUND error code
-  # - SELECTOR_INVALID error code
-  # - Error includes retryable field
+  # Setup: Navigate to a page first (needed for element/interaction tests)
+  log "Setup: Navigating to example.com..."
+  mcp_call '{"action":"navigate","url":"https://example.com"}' >/dev/null 2>&1 || true
+
+  # Test 1: Element not found - click on non-existent element ref
+  run_mcp_test 1 "Element not found (click e99999)" \
+    '{"action":"click","ref":"e99999"}' \
+    "ELEMENT_NOT_FOUND" \
+    true
+
+  # Test 2: Tab not found - switch to non-existent tab
+  run_mcp_test 2 "Tab not found (tab b99)" \
+    '{"action":"tab","ref":"b99"}' \
+    "TAB_NOT_FOUND" \
+    true
+
+  # Test 3: Invalid selector - malformed CSS selector
+  run_mcp_test 3 "Invalid selector (waitFor)" \
+    '{"action":"waitFor","selector":"[invalid[["}' \
+    "SELECTOR_INVALID|error|invalid" \
+    true
+
+  # Test 4: Navigation timeout - very short timeout
+  run_mcp_test 4 "Navigation timeout (1ms)" \
+    '{"action":"waitForNavigation","timeout":1}' \
+    "TIMEOUT|timeout|NAVIGATION_TIMEOUT" \
+    true
 
   finalize_results $PASSED $WARNED $FAILED $TOTAL
 
