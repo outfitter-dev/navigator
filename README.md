@@ -17,7 +17,7 @@ We maintain a fork at [@outfitter/agent-browser](https://github.com/outfitter-de
 ## Features
 
 - **Single MCP tool** — One `navigator` tool with action routing (not 26+ separate tools)
-- **CLI** — `nav open`, `nav click`, `nav snap`, `nav mark`
+- **CLI** — `nav open`, `nav click`, `nav snap`, `nav marker`
 - **Paired mode** — Agent works in your browser via Chrome extension
 - **Markers** — Click to annotate, copy to agent with notes
 - **Sessions** — Auto-continuation within 30min, step logging
@@ -47,8 +47,9 @@ nav click @e1                 # Click element by ref
 nav type "#e2" "hello"        # Type into input
 
 # Markers
-nav mark ".pricing-card"      # Capture element as marker
-nav markers                   # List all markers
+nav marker set homepage        # Save current page as marker
+nav marker list                # List all markers
+nav marker read homepage       # Get marker content
 
 # Sessions
 nav session                   # Show current session

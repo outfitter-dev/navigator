@@ -1,5 +1,7 @@
 # 05 - MCP & CLI
 
+> **Historical Document**: This plan was written during initial development. The actual implementation may differ. See `CLAUDE.md` for current command reference.
+
 Implement the MCP server and CLI for Navigator.
 
 ## Overview

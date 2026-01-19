@@ -1,5 +1,7 @@
 # CLI Cleanup Review (Codex)
 
+> **Note**: This document is a historical artifact from the command consolidation process (2026-01).
+
 This is a focused review of the proposed CLI cleanup with suggestions around grouping, discoverability, and long term ergonomics.
 
 ## 1) Command groupings (server, tab, mark)
