@@ -37,6 +37,8 @@ Selectors can be used instead of refs for most element actions: \`selector: ".bt
 - \`marker\`: capture element for visual regression
 - \`markers\`: list captured markers
 - \`markerGet\`, \`markerRead\`: retrieve marker details
+- \`markerCompare\`: compare two markers
+- \`markerDelete\`: delete a marker
 `
 }
 
@@ -45,12 +47,15 @@ function formatActionCategories(): string {
 		navigation: 'navigate(url), back, forward, reload',
 		tabs: 'tab(ref), tabs, newTab(url?), closeTab(ref)',
 		interaction:
-			'click(ref|selector), type(ref|selector, text), select(ref|selector, value), hover, scroll',
+			'click, type(text), select(value), hover, scroll, find(text|role|label), check, uncheck, upload(files), dialog(handler), press(key), fill(value), focus',
 		wait: 'waitFor(ref, state?), waitForNavigation, wait(ms)',
 		capture:
 			'snap(interactive?), screenshot(selector?, fullPage?), html(selector?), text(ref?)',
-		markers: 'marker(selector), markers, markerRead(id), markerGet(id)',
+		markers:
+			'marker(selector), markers, markerRead(id), markerGet(id), markerCompare(id1, id2), markerDelete(id)',
 		display: 'viewport(preset|width+height), colorScheme(scheme), mode(target)',
+		session: 'session, sessions(limit?), steps(sessionId?, limit?)',
+		evaluate: 'evaluate(script, args?)',
 	}
 
 	return Object.entries(ACTION_CATEGORIES)
