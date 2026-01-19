@@ -1,7 +1,7 @@
 /**
  * Tab Commands
  *
- * tabs, tab, newTab, closeTab
+ * nav tab list|switch|new|close
  */
 
 import type { Command } from 'commander'
@@ -18,9 +18,10 @@ export function registerTabCommands(
 	program: Command,
 	getClient: () => NavigatorClient,
 ): void {
-	// nav tabs
-	program
-		.command('tabs')
+	const tab = program.command('tab').description('Tab management')
+
+	// nav tab list
+	tab.command('list')
 		.description('List open tabs')
 		.action(async () => {
 			const client = getClient()
@@ -51,9 +52,9 @@ export function registerTabCommands(
 			}
 		})
 
-	// nav tab <id>
-	program
-		.command('tab <id>')
+	// nav tab <id> (shorthand for switch)
+	// nav tab switch <id>
+	tab.command('switch <id>')
 		.description('Switch to tab')
 		.action(async (id: string) => {
 			const client = getClient()
@@ -69,9 +70,8 @@ export function registerTabCommands(
 			console.log('Switched to tab:', id)
 		})
 
-	// nav new-tab [url]
-	program
-		.command('new-tab [url]')
+	// nav tab new [url]
+	tab.command('new [url]')
 		.description('Open new tab')
 		.action(async (url?: string) => {
 			const client = getClient()
@@ -84,9 +84,8 @@ export function registerTabCommands(
 			console.log(result.extractedContent ?? 'Opened new tab')
 		})
 
-	// nav close-tab <id>
-	program
-		.command('close-tab <id>')
+	// nav tab close <id>
+	tab.command('close <id>')
 		.description('Close tab')
 		.action(async (id: string) => {
 			const client = getClient()
@@ -100,5 +99,27 @@ export function registerTabCommands(
 			})
 
 			console.log('Closed tab:', id)
+		})
+
+	// Default action: nav tab <id> → switch to tab
+	tab.argument('[id]', 'Tab ID to switch to')
+		.action(async (id?: string) => {
+			if (!id) {
+				// No ID provided, show help
+				tab.outputHelp()
+				return
+			}
+
+			const client = getClient()
+
+			// Parse as number if it looks like one, otherwise use string
+			const ref = /^\d+$/.test(id) ? Number(id) : id
+
+			await client.execute({
+				action: 'tab',
+				ref,
+			})
+
+			console.log('Switched to tab:', id)
 		})
 }

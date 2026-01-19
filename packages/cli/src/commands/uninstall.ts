@@ -36,6 +36,7 @@ interface SpawnResult {
 }
 
 interface UninstallOptions {
+	plugin?: string
 	yes?: boolean
 	keepData?: boolean
 }
@@ -479,9 +480,16 @@ export function registerUninstallCommand(program: Command): void {
 	program
 		.command('uninstall')
 		.description('Uninstall Navigator plugin and data')
+		.option('--plugin <name>', 'Plugin to uninstall (claude)', 'claude')
 		.option('-y, --yes', 'Skip confirmation prompt')
 		.option('--keep-data', 'Keep session data and config')
 		.action(async (options) => {
+			if (options.plugin !== 'claude') {
+				console.error(`Unknown plugin: ${options.plugin}`)
+				console.error('Available plugins: claude')
+				process.exitCode = 1
+				return
+			}
 			await runUninstall(options)
 		})
 }

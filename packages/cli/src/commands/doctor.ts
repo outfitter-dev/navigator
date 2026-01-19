@@ -111,7 +111,7 @@ function checkPlugin(): CheckResult {
 	return {
 		name: 'Plugin',
 		status: 'warn',
-		detail: 'not installed (run: nav init)',
+		detail: 'not installed (run: nav install --plugin claude)',
 	}
 }
 

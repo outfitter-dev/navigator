@@ -1,8 +1,7 @@
 /**
- * Init command for installing the Navigator Claude Code plugin.
+ * Install command for installing Navigator components.
  *
- * Discovers and installs the shipped plugin from packages/agents/
- * instead of generating files dynamically.
+ * Currently supports installing the Claude Code plugin from packages/agents/
  */
 
 import { existsSync } from 'node:fs'
@@ -31,14 +30,14 @@ export interface ClaudeConfigStatus {
 	pluginInstalled: boolean
 }
 
-export interface InitResult {
+export interface RunInstallResult {
 	success: boolean
 	globalInstalled: boolean
 	projectInstalled: boolean
 	errors: string[]
 }
 
-export interface RunInitOptions {
+export interface RunInstallOptions {
 	debug?: boolean
 }
 
@@ -285,7 +284,7 @@ function installPlugin(
 }
 
 // ============================================================================
-// Interactive Init Flow
+// Interactive Install Flow
 // ============================================================================
 
 const selectTheme = {
@@ -357,12 +356,12 @@ function buildChoiceName(
 	return baseName
 }
 
-export async function runInit(
+export async function runInstall(
 	projectDir: string = process.cwd(),
-	options: RunInitOptions = {},
-): Promise<InitResult> {
+	options: RunInstallOptions = {},
+): Promise<RunInstallResult> {
 	const { debug = false } = options
-	const result: InitResult = {
+	const result: RunInstallResult = {
 		success: true,
 		globalInstalled: false,
 		projectInstalled: false,

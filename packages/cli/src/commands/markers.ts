@@ -1,7 +1,7 @@
 /**
  * Marker Commands
  *
- * mark, markers, marker
+ * nav mark save|list|get|diff|remove
  */
 
 import type { Command } from 'commander'
@@ -56,9 +56,10 @@ export function registerMarkerCommands(
 	program: Command,
 	getClient: () => NavigatorClient,
 ): void {
-	// nav mark
-	program
-		.command('mark')
+	const mark = program.command('mark').description('Marker management')
+
+	// nav mark save
+	mark.command('save')
 		.description('Create marker at coordinates')
 		.option('-x <number>', 'X coordinate')
 		.option('-y <number>', 'Y coordinate')
@@ -94,9 +95,8 @@ export function registerMarkerCommands(
 			console.log('Created marker:', result.data?.id ?? 'unknown')
 		})
 
-	// nav markers
-	program
-		.command('markers')
+	// nav mark list
+	mark.command('list')
 		.description('List all markers')
 		.option('--md', 'Output as markdown')
 		.action(async (options) => {
@@ -118,9 +118,8 @@ export function registerMarkerCommands(
 			}
 		})
 
-	// nav marker <id>
-	program
-		.command('marker <id>')
+	// nav mark get <id>
+	mark.command('get <id>')
 		.description('Get marker details')
 		.action(async (id: string) => {
 			const client = getClient()
@@ -133,9 +132,8 @@ export function registerMarkerCommands(
 			console.log(JSON.stringify(result.data, null, 2))
 		})
 
-	// nav marker-compare <id1> <id2>
-	program
-		.command('marker-compare <id1> <id2>')
+	// nav mark diff <id1> <id2>
+	mark.command('diff <id1> <id2>')
 		.description('Compare two markers')
 		.action(async (id1: string, id2: string) => {
 			const client = getClient()
@@ -148,9 +146,8 @@ export function registerMarkerCommands(
 			console.log(JSON.stringify(result, null, 2))
 		})
 
-	// nav marker-delete <id>
-	program
-		.command('marker-delete <id>')
+	// nav mark remove <id>
+	mark.command('remove <id>')
 		.description('Delete a marker')
 		.action(async (id: string) => {
 			const client = getClient()
