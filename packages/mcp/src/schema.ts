@@ -130,6 +130,101 @@ const scrollAction = z.object({
 	y: z.number().default(0).describe('Vertical scroll delta'),
 })
 
+const findAction = z.object({
+	action: z.literal('find'),
+	text: z.string().optional().describe('Text to search for'),
+	exact: z.boolean().optional().describe('Exact text match'),
+	role: z.string().optional().describe('ARIA role'),
+	label: z.string().optional().describe('Form label text'),
+	placeholder: z.string().optional().describe('Placeholder text'),
+	testid: z.string().optional().describe('data-testid attribute'),
+	ref: z
+		.string()
+		.regex(/^@?e\d+(_\d+)?$/)
+		.optional()
+		.describe('Element reference'),
+	inRef: z.string().optional().describe('Scope within element ref'),
+	inCss: z.string().optional().describe('Scope within CSS selector'),
+	inTag: z.string().optional().describe('Scope within tag'),
+	tag: z.string().optional().describe('Filter by tag name'),
+	visible: z.boolean().optional().describe('Filter to visible elements'),
+	enabled: z.boolean().optional().describe('Filter to enabled elements'),
+	checked: z.boolean().optional().describe('Filter to checked elements'),
+	tab: tabRefSchema.optional(),
+})
+
+const checkAction = z.object({
+	action: z.literal('check'),
+	ref: z
+		.string()
+		.regex(/^@?e\d+(_\d+)?$/)
+		.optional()
+		.describe('Checkbox element reference'),
+	selector: selectorSchema.optional(),
+	tab: tabRefSchema.optional(),
+})
+
+const uncheckAction = z.object({
+	action: z.literal('uncheck'),
+	ref: z
+		.string()
+		.regex(/^@?e\d+(_\d+)?$/)
+		.optional()
+		.describe('Checkbox element reference'),
+	selector: selectorSchema.optional(),
+	tab: tabRefSchema.optional(),
+})
+
+const uploadAction = z.object({
+	action: z.literal('upload'),
+	ref: z
+		.string()
+		.regex(/^@?e\d+(_\d+)?$/)
+		.optional()
+		.describe('File input element reference'),
+	selector: selectorSchema.optional(),
+	files: z.array(z.string()).min(1).describe('File paths to upload'),
+	tab: tabRefSchema.optional(),
+})
+
+const dialogAction = z.object({
+	action: z.literal('dialog'),
+	handler: z
+		.enum(['accept', 'dismiss', 'prompt', 'clear'])
+		.describe('Dialog handler action'),
+	text: z.string().optional().describe('Text for prompt dialog'),
+	tab: tabRefSchema.optional(),
+})
+
+const pressAction = z.object({
+	action: z.literal('press'),
+	key: z.string().min(1).describe('Key to press (e.g., Enter, Ctrl+s)'),
+	tab: tabRefSchema.optional(),
+})
+
+const fillAction = z.object({
+	action: z.literal('fill'),
+	ref: z
+		.string()
+		.regex(/^@?e\d+(_\d+)?$/)
+		.optional()
+		.describe('Input element reference'),
+	selector: selectorSchema.optional(),
+	value: z.string().describe('Value to fill'),
+	tab: tabRefSchema.optional(),
+})
+
+const focusAction = z.object({
+	action: z.literal('focus'),
+	ref: z
+		.string()
+		.regex(/^@?e\d+(_\d+)?$/)
+		.optional()
+		.describe('Element reference to focus'),
+	selector: selectorSchema.optional(),
+	tab: tabRefSchema.optional(),
+})
+
 // ============================================================================
 // Wait Actions
 // ============================================================================
@@ -244,6 +339,17 @@ const markerGetAction = z.object({
 	includeScreenshot: z.boolean().default(false),
 })
 
+const markerCompareAction = z.object({
+	action: z.literal('markerCompare'),
+	id1: z.string().uuid().describe('First marker ID'),
+	id2: z.string().uuid().describe('Second marker ID'),
+})
+
+const markerDeleteAction = z.object({
+	action: z.literal('markerDelete'),
+	id: z.string().uuid().describe('Marker ID to delete'),
+})
+
 // ============================================================================
 // Display Actions
 // ============================================================================
@@ -270,6 +376,36 @@ const modeAction = z.object({
 })
 
 // ============================================================================
+// Session Actions
+// ============================================================================
+
+const sessionAction = z.object({
+	action: z.literal('session'),
+})
+
+const sessionsAction = z.object({
+	action: z.literal('sessions'),
+	limit: z.number().int().min(1).optional().describe('Limit results'),
+})
+
+const stepsAction = z.object({
+	action: z.literal('steps'),
+	sessionId: z.string().uuid().optional().describe('Session ID'),
+	limit: z.number().int().min(1).optional().describe('Limit results'),
+})
+
+// ============================================================================
+// Evaluate Action
+// ============================================================================
+
+const evaluateAction = z.object({
+	action: z.literal('evaluate'),
+	script: z.string().min(1).describe('JavaScript to evaluate'),
+	args: z.array(z.unknown()).optional().describe('Arguments for script'),
+	tab: tabRefSchema.optional(),
+})
+
+// ============================================================================
 // Combined Action Schema (Single MCP Tool Pattern)
 // ============================================================================
 
@@ -291,6 +427,14 @@ export const navigatorActionSchema = z
 		selectAction,
 		hoverAction,
 		scrollAction,
+		findAction,
+		checkAction,
+		uncheckAction,
+		uploadAction,
+		dialogAction,
+		pressAction,
+		fillAction,
+		focusAction,
 		// Wait
 		waitForAction,
 		waitForNavigationAction,
@@ -305,13 +449,32 @@ export const navigatorActionSchema = z
 		markersAction,
 		markerReadAction,
 		markerGetAction,
+		markerCompareAction,
+		markerDeleteAction,
 		// Display
 		viewportAction,
 		colorSchemeAction,
 		modeAction,
+		// Session
+		sessionAction,
+		sessionsAction,
+		stepsAction,
+		// Evaluate
+		evaluateAction,
 	])
 	.superRefine((value, ctx) => {
-		const needsTarget = new Set(['click', 'type', 'select', 'hover', 'waitFor'])
+		const needsTarget = new Set([
+			'click',
+			'type',
+			'select',
+			'hover',
+			'waitFor',
+			'check',
+			'uncheck',
+			'upload',
+			'fill',
+			'focus',
+		])
 		if (!needsTarget.has(value.action)) {
 			return
 		}
@@ -341,11 +504,34 @@ export type NavigatorAction = z.infer<typeof navigatorActionSchema>
 export const ACTION_CATEGORIES = {
 	navigation: ['navigate', 'back', 'forward', 'reload'] as const,
 	tabs: ['tab', 'tabs', 'newTab', 'closeTab'] as const,
-	interaction: ['click', 'type', 'select', 'hover', 'scroll'] as const,
+	interaction: [
+		'click',
+		'type',
+		'select',
+		'hover',
+		'scroll',
+		'find',
+		'check',
+		'uncheck',
+		'upload',
+		'dialog',
+		'press',
+		'fill',
+		'focus',
+	] as const,
 	wait: ['waitFor', 'waitForNavigation', 'wait'] as const,
 	capture: ['snap', 'screenshot', 'html', 'text'] as const,
-	markers: ['marker', 'markers', 'markerRead', 'markerGet'] as const,
+	markers: [
+		'marker',
+		'markers',
+		'markerRead',
+		'markerGet',
+		'markerCompare',
+		'markerDelete',
+	] as const,
 	display: ['viewport', 'colorScheme', 'mode'] as const,
+	session: ['session', 'sessions', 'steps'] as const,
+	evaluate: ['evaluate'] as const,
 } as const
 
 export type ActionCategory = keyof typeof ACTION_CATEGORIES

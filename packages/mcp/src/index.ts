@@ -91,8 +91,11 @@ server.setRequestHandler(ListToolsRequestSchema, () => {
 							description: 'CSS selector for element actions',
 						},
 						// Interaction params
-						text: { type: 'string', description: 'Text for type action' },
-						value: { type: 'string', description: 'Select option value' },
+						text: { type: 'string', description: 'Text for type/find action' },
+						value: {
+							type: 'string',
+							description: 'Value for select/fill action',
+						},
 						button: {
 							type: 'string',
 							enum: ['left', 'right', 'middle'],
@@ -111,6 +114,61 @@ server.setRequestHandler(ListToolsRequestSchema, () => {
 						delay: {
 							type: 'number',
 							description: 'Delay between keystrokes (ms)',
+						},
+						// Find params
+						exact: {
+							type: 'boolean',
+							description: 'Exact text match for find',
+						},
+						role: { type: 'string', description: 'ARIA role for find' },
+						label: { type: 'string', description: 'Form label text for find' },
+						placeholder: {
+							type: 'string',
+							description: 'Placeholder text for find',
+						},
+						testid: {
+							type: 'string',
+							description: 'data-testid attribute for find',
+						},
+						inRef: {
+							type: 'string',
+							description: 'Scope find within element ref',
+						},
+						inCss: {
+							type: 'string',
+							description: 'Scope find within CSS selector',
+						},
+						inTag: { type: 'string', description: 'Scope find within tag' },
+						tag: {
+							type: 'string',
+							description: 'Filter find results by tag name',
+						},
+						visible: {
+							type: 'boolean',
+							description: 'Filter find to visible elements',
+						},
+						enabled: {
+							type: 'boolean',
+							description: 'Filter find to enabled elements',
+						},
+						checked: {
+							type: 'boolean',
+							description: 'Filter find to checked elements',
+						},
+						// Press/Dialog/Upload params
+						key: {
+							type: 'string',
+							description: 'Key to press (e.g., Enter, Ctrl+s)',
+						},
+						files: {
+							type: 'array',
+							items: { type: 'string' },
+							description: 'File paths for upload',
+						},
+						handler: {
+							type: 'string',
+							enum: ['accept', 'dismiss', 'prompt', 'clear'],
+							description: 'Dialog handler',
 						},
 						// Scroll params
 						x: { type: 'number', description: 'Scroll X delta' },
@@ -176,6 +234,14 @@ server.setRequestHandler(ListToolsRequestSchema, () => {
 						},
 						// Marker params
 						id: { type: 'string', description: 'Marker id' },
+						id1: {
+							type: 'string',
+							description: 'First marker ID for comparison',
+						},
+						id2: {
+							type: 'string',
+							description: 'Second marker ID for comparison',
+						},
 						name: { type: 'string', description: 'Marker name' },
 						tags: {
 							type: 'array',
@@ -194,6 +260,20 @@ server.setRequestHandler(ListToolsRequestSchema, () => {
 						includeScreenshot: {
 							type: 'boolean',
 							description: 'Include screenshot in response',
+						},
+						// Evaluate params
+						script: {
+							type: 'string',
+							description: 'JavaScript to evaluate in page',
+						},
+						args: {
+							type: 'array',
+							description: 'Arguments for script',
+						},
+						// Session params
+						sessionId: {
+							type: 'string',
+							description: 'Session ID for steps query',
 						},
 					},
 					required: ['action'],
