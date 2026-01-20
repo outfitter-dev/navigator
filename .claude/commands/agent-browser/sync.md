@@ -1,29 +1,33 @@
 ---
-description: One-shot sync of agent-browser fork with upstream (happy path)
+description: One-shot sync of agent-browser fork with upstream (redirects to flow)
 ---
 
 # Sync Agent-Browser
 
-Fast-track sync when upstream has non-breaking changes. Merges, updates navigator, and verifies.
+**Redirects to `/flow:agent-browser`** — The sync command now uses the full orchestrated flow.
+
+## Why?
+
+The v0.6.0 sync incident showed that "0 breaking changes" doesn't mean "safe to auto-merge":
+- Marketplace plugin was merged without review (Vercel-branded, not navigator-appropriate)
+- 8 new features weren't assessed for navigator integration
+- No documentation created before merge
+
+All upstream changes — even "clean" ones — now require investigation before merge.
 
 ## Steps
 
-1. **Load** — Use the Skill tool to load the **agent-browser-upstream** skill
-2. **Analyze** — Review the status below for breaking changes
-3. **Gate** — If breaking changes exist, stop and recommend `/agent-browser:check` instead
-4. **Execute** — If clean, run the full workflow:
-   - Merge upstream into fork
-   - Push to origin
-   - Update navigator's bun.lock
-   - Run typecheck and tests
-   - Report success or failure
+1. **Redirect** — Run `/flow:agent-browser` instead
+2. The flow will:
+   - Analyze changes
+   - Dispatch analyst for deep dive
+   - Create integration docs
+   - Get user confirmation
+   - Then merge with proper tagging
 
-## Guidance
+## Quick Status
 
-- This is the happy path — abort if anything looks risky
-- Breaking changes (commits with `!` or "BREAKING") → stop, use check/update flow instead
-- Test failures → stop, report what failed, do not commit
-- Success → report versions and confirm navigator is on latest
+The status below shows what's pending. Use `/flow:agent-browser` to proceed.
 
 ## Context
 
