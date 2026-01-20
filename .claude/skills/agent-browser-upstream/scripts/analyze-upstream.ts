@@ -5,7 +5,7 @@
  * Usage:
  *   bun run analyze-upstream.ts [--base origin/main] [--target upstream/main]
  *
- * The script uses .agent-browser/ in the navigator repo root by default.
+ * The script uses .agent-browser/repo/ in the navigator repo root by default.
  * If missing, it clones the fork automatically.
  *
  * Output: JSON with categorized commits and file changes
@@ -270,7 +270,7 @@ async function main() {
 Usage: bun run analyze-upstream.ts [options]
 
 Options:
-  --repo <path>     Path to agent-browser repo (default: .agent-browser/ in repo root)
+  --repo <path>     Path to agent-browser repo (default: .agent-browser/repo/ in navigator root)
   --base <ref>      Base ref (default: origin/main)
   --target <ref>    Target ref (default: upstream/main)
   --format <fmt>    Output format: json, summary (default: json)
@@ -282,7 +282,7 @@ Environment:
 		process.exit(0)
 	}
 
-	// Determine repo path: explicit > env var > .agent-browser/
+	// Determine repo path: explicit > env var > .agent-browser/repo/
 	let repo: string
 	if (values.repo) {
 		repo = values.repo
@@ -290,7 +290,7 @@ Environment:
 		repo = process.env.AGENT_BROWSER_LOCAL
 	} else {
 		const navigatorRoot = await findRepoRoot()
-		repo = join(navigatorRoot, '.agent-browser')
+		repo = join(navigatorRoot, '.agent-browser', 'repo')
 	}
 
 	const base = values.base!

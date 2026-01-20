@@ -18,7 +18,8 @@ vercel-labs/agent-browser (upstream)
 
 | Version | Date | Status | Breaking Changes | Notes |
 |---------|------|--------|------------------|-------|
-| — | — | Current | — | Initial setup |
+| [v0.6.0](./v0.6.0/integration.md) | 2025-01-20 | Fork synced, pending schema updates | 0 | `styles`, `recording*`, `proxy` actions |
+| — | — | Initial | — | Initial setup |
 
 <!-- New versions are added above this line -->
 

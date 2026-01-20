@@ -20,25 +20,32 @@ Manages the process of keeping navigator's agent-browser fork in sync with the u
 
 **None required** - the skill auto-manages everything:
 
-1. **Auto-clone**: If `.agent-browser/` doesn't exist, the script clones the fork automatically
+1. **Auto-clone**: If `.agent-browser/repo/` doesn't exist, the script clones the fork automatically
 2. **Auto-configure**: Upstream remote is added if missing
 3. **Override**: Set `AGENT_BROWSER_LOCAL` env var to use an existing local clone instead
 
-The `.agent-browser/` directory is gitignored and lives in the navigator repo root.
+The `.agent-browser/` directory is gitignored and contains:
+- `repo/` — Git clone of the fork
+- `analysis/<sha>/` — Generated artifacts (jq-able JSON, diffs)
 
 ## Workflow Overview
 
 ```
-Phase 1: Sync Fork
+Phase 1: Check Status (fetch, compare)
     ↓
-Phase 2: Analyze Changes
+Phase 2: Analyze Changes (categorize commits)
     ↓
-Phase 3: Impact Assessment
+Phase 3: Deep Investigation (dispatch analyst)
     ↓
-Phase 4: Write Integration Docs
+Phase 4: Write Integration Docs + Create Issue
     ↓
-Phase 5: Execute Merge (requires confirmation)
+Phase 5: User Review & Confirmation
+    ↓
+Phase 6: Execute Merge (ONLY after user confirms)
 ```
+
+> **CRITICAL**: Never merge without completing phases 3-5 first.
+> The old "clean update = auto-sync" shortcut caused skipped investigation.
 
 ---
 
@@ -59,7 +66,7 @@ Phase 5: Execute Merge (requires confirmation)
 
 2. **Or check manually**
    ```bash
-   cd .agent-browser
+   cd .agent-browser/repo
 
    # Current fork version
    git describe --tags origin/main 2>/dev/null || git rev-parse --short origin/main
@@ -74,6 +81,8 @@ Phase 5: Execute Merge (requires confirmation)
 ### Decision Point
 
 If no commits in divergence → **STOP** with "Fork is up to date with upstream"
+
+If commits exist → **CONTINUE** to Phase 2 (never skip to merge)
 
 ---
 
@@ -116,7 +125,51 @@ Present a summary table:
 
 ---
 
-## Phase 3: Impact Assessment
+## Phase 3: Deep Investigation
+
+**REQUIRED** — Even for "clean" updates with 0 breaking changes, dispatch an analyst subagent.
+
+### Why This Phase Exists
+
+The 2025-01-20 v0.6.0 sync skipped investigation because "0 breaking changes" was treated as a green light. This caused:
+- Marketplace plugin merged without review (Vercel-branded, not navigator-appropriate)
+- 8 new features not assessed for navigator integration
+- No documentation created before merge
+- User had to request investigation retroactively
+
+### Items Requiring Explicit Decision
+
+These additions should ALWAYS be flagged:
+
+| Item | Question |
+|------|----------|
+| **Plugins** (`.claude-plugin/`) | Include, exclude, or create navigator version? |
+| **New commands** | Should navigator expose this action? What schema changes? |
+| **Protocol/type changes** | How do these affect navigator's schema? |
+| **CLI flags** | Should navigator CLI mirror these? |
+
+### Steps
+
+1. **Dispatch analyst subagent**
+   ```
+   Task tool → baselayer:analyst
+   Prompt: "Analyze the upstream commits. For each additive change:
+   - What does it do?
+   - Should navigator expose it?
+   - What schema/code changes needed?
+   Flag any plugins or significant additions for user decision."
+   ```
+
+2. **Review analyst findings**
+   - Ensure all new commands identified
+   - Ensure plugins flagged
+   - Ensure schema changes documented
+
+3. **Do NOT proceed to merge** until analyst complete
+
+---
+
+## Phase 4: Impact Assessment (Navigator-Specific)
 
 ### Steps
 
@@ -154,7 +207,7 @@ If breaking changes exist → **STOP** and confirm with user before proceeding
 
 ---
 
-## Phase 4: Write Integration Docs
+## Phase 5: Write Integration Docs
 
 ### Steps
 
@@ -204,15 +257,15 @@ If breaking changes exist → **STOP** and confirm with user before proceeding
 
 ---
 
-## Phase 5: Execute Merge (Optional)
+## Phase 6: Execute Merge
 
-> **REQUIRES USER CONFIRMATION** - Do not proceed without explicit approval
+> **REQUIRES USER CONFIRMATION** - Do not proceed without explicit approval from Phase 5 docs review
 
 ### Steps
 
 1. **Merge upstream into fork**
    ```bash
-   cd .agent-browser
+   cd /path/to/navigator/.agent-browser/repo  # Always use absolute path
    git checkout main
    git merge upstream/main --no-edit
    ```
@@ -226,24 +279,74 @@ If breaking changes exist → **STOP** and confirm with user before proceeding
    git push origin main
    ```
 
-4. **Update navigator**
+4. **Create fork release tag**
+   ```bash
+   # Determine tag version: <upstream-version>-nav.<patch>
+   # e.g., v0.6.0-nav.1, v0.6.0-nav.2
+   VERSION="v0.6.0-nav.1"  # Adjust based on upstream version
+
+   git tag -a "$VERSION" -m "Navigator fork release: synced with upstream
+
+   Upstream: vercel-labs/agent-browser <upstream-tag>
+   Navigator tracking: <issue-url>"
+
+   git push origin "$VERSION"
+   ```
+
+5. **Update navigator's package.json**
+   ```bash
+   cd /path/to/navigator  # Back to navigator root
+
+   # Update packages/server/package.json to reference the tag:
+   # "@outfitter/agent-browser": "github:outfitter-dev/agent-browser#v0.6.0-nav.1"
+   ```
+
+6. **Force refresh bun lockfile** (required for GitHub deps)
    ```bash
    cd /path/to/navigator
-   bun update @outfitter/agent-browser
+   rm bun.lock
+   bun install
    ```
 
-5. **Run navigator tests**
+   > **Why?** Bun caches GitHub commit SHAs. Without removing the lockfile,
+   > `bun install` may not fetch the new tag even after pushing.
+
+7. **Verify lockfile updated**
    ```bash
-   bun test
-   bun run typecheck
+   grep "agent-browser" bun.lock
+   # Should show the new tag: #v0.6.0-nav.1
    ```
 
-6. **Update status.md**
-   Mark completed items
+8. **Run navigator tests**
+   ```bash
+   bun run typecheck
+   bun test
+   ```
+
+9. **Update integration docs**
+   - Mark fork synced in `docs/_upstream/<version>/integration.md`
+   - Add tag version to the doc
 
 ### Decision Point
 
 If tests fail → **STOP** and document failures, do not commit
+
+---
+
+## Fork Tagging Convention
+
+The fork uses `<upstream-version>-nav.<patch>` tags:
+
+| Tag | Meaning |
+|-----|---------|
+| `v0.6.0-nav.1` | First navigator release based on upstream v0.6.0 |
+| `v0.6.0-nav.2` | Second navigator release (e.g., hotfix to fork) |
+| `v0.7.0-nav.1` | First navigator release based on upstream v0.7.0 |
+
+Benefits:
+- Clear upstream version lineage
+- Navigator can branch and test new versions before merging to main
+- Pinnable in package.json: `github:outfitter-dev/agent-browser#v0.6.0-nav.1`
 
 ---
 
@@ -286,30 +389,98 @@ When upstream changes a type definition:
 # Run analysis (auto-clones if needed)
 bun run .claude/skills/agent-browser-upstream/scripts/analyze-upstream.ts --format summary
 
+# Generate diff artifacts (for incremental context loading)
+bun run .claude/skills/agent-browser-upstream/scripts/generate-diff.ts
+
 # Check current versions
-cd .agent-browser && git describe --tags origin/main upstream/main
+cd .agent-browser/repo && git describe --tags origin/main upstream/main
 
 # View pending changes
-cd .agent-browser && git log --oneline origin/main..upstream/main
+cd .agent-browser/repo && git log --oneline origin/main..upstream/main
 
 # Diff specific file
-cd .agent-browser && git diff origin/main..upstream/main -- src/protocol.ts
+cd .agent-browser/repo && git diff origin/main..upstream/main -- src/protocol.ts
+
+# Read analysis artifacts incrementally
+cat .agent-browser/analysis/<sha>/summary.json        # Start here
+jq '.counts' .agent-browser/analysis/<sha>/summary.json
+cat .agent-browser/analysis/<sha>/by-category/breaking.json
 ```
 
 ### Key Files
 
 | Location | Purpose |
 |----------|---------|
-| `.agent-browser/` | Local clone of the fork (gitignored) |
+| `.agent-browser/repo/` | Local clone of the fork (gitignored) |
+| `.agent-browser/analysis/<sha>/` | Generated artifacts for specific upstream SHA |
 | `docs/_upstream/README.md` | Index of all integration docs |
 | `docs/_upstream/<version>/integration.md` | Version-specific integration plan |
-| `docs/_upstream/<version>/changes.md` | Raw changelog |
-| `docs/_upstream/<version>/status.md` | Implementation tracker |
 | `references/integration-template.md` | Template for integration docs (also the issue) |
+| `scripts/generate-diff.ts` | Generates jq-able artifacts for agents |
+| `scripts/analyze-upstream.ts` | Analyzes commits between refs |
 | `scripts/create-issue.ts` | Creates GitHub issue from integration doc |
 
 ### Environment Variables
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `AGENT_BROWSER_LOCAL` | Override repo path | `.agent-browser/` in repo root |
+| `AGENT_BROWSER_LOCAL` | Override repo path | `.agent-browser/repo/` in navigator root |
+
+---
+
+## Troubleshooting
+
+### Bun Lockfile Not Updating
+
+**Symptom:** After pushing new tag to fork, `bun install` still shows old commit SHA.
+
+**Cause:** Bun caches GitHub dependencies by commit SHA. Even with a new tag, it may reuse the cached resolution.
+
+**Fix:**
+```bash
+cd /path/to/navigator
+rm bun.lock
+bun install
+grep "agent-browser" bun.lock  # Verify new tag/commit
+```
+
+### Git Context Issues
+
+**Symptom:** `gh` commands target wrong repo (e.g., upstream instead of navigator).
+
+**Cause:** Working directory is `.agent-browser/repo/` (the fork clone) instead of navigator root.
+
+**Fix:** Always use absolute paths:
+```bash
+# WRONG - relative path, may be in wrong directory
+cd .agent-browser/repo && git push
+
+# RIGHT - absolute path
+cd /Users/you/project/navigator/.agent-browser/repo && git push
+
+# For navigator commands, go back to root
+cd /Users/you/project/navigator && gh issue create
+```
+
+### Tag Already Exists
+
+**Symptom:** `git tag` fails with "tag already exists".
+
+**Fix:** Increment the patch number:
+```bash
+# If v0.6.0-nav.1 exists, use v0.6.0-nav.2
+git tag -a "v0.6.0-nav.2" -m "..."
+```
+
+### Fork Behind After Merge
+
+**Symptom:** `git log origin/main..upstream/main` still shows commits after merge.
+
+**Cause:** Origin wasn't pushed.
+
+**Fix:**
+```bash
+cd .agent-browser/repo
+git push origin main
+git log --oneline origin/main..upstream/main  # Should be empty
+```
