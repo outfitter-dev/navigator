@@ -16,6 +16,15 @@ user_invocable: false
 
 Manages the process of keeping navigator's agent-browser fork in sync with the upstream vercel-labs/agent-browser repository.
 
+## Related Skills
+
+| Skill | Purpose |
+|-------|---------|
+| **[upstream-evaluation](../upstream-evaluation/SKILL.md)** | Decision frameworks for what to adopt/skip/adapt |
+| **[docs/architecture/DESIGN.md](../../../docs/architecture/DESIGN.md)** | Navigator's design philosophy and conventions |
+
+**Workflow**: Use `upstream-evaluation` skill for the "what and why" decisions, then return here for the "how" execution.
+
 ## Prerequisites
 
 **None required** - the skill auto-manages everything:
@@ -35,7 +44,7 @@ Phase 1: Check Status (fetch, compare)
     ↓
 Phase 2: Analyze Changes (categorize commits)
     ↓
-Phase 3: Deep Investigation (dispatch analyst)
+Phase 3: Evaluate Changes ← uses upstream-evaluation skill
     ↓
 Phase 4: Write Integration Docs + Create Issue
     ↓
@@ -45,7 +54,7 @@ Phase 6: Execute Merge (ONLY after user confirms)
 ```
 
 > **CRITICAL**: Never merge without completing phases 3-5 first.
-> The old "clean update = auto-sync" shortcut caused skipped investigation.
+> Phase 3 MUST use the `upstream-evaluation` skill to apply Navigator's design frameworks.
 
 ---
 
@@ -125,42 +134,34 @@ Present a summary table:
 
 ---
 
-## Phase 3: Deep Investigation
+## Phase 3: Evaluate Changes
 
-**REQUIRED** — Even for "clean" updates with 0 breaking changes, dispatch an analyst subagent.
+**REQUIRED** — Even for "clean" updates with 0 breaking changes.
+
+### Run the Evaluation Command
+
+Use `/agent-browser:integrate-changes`, which:
+- Loads the **upstream-evaluation** skill
+- Provides decision frameworks from DESIGN.md
+- Guides through structured evaluation process
+- Outputs adopt/skip/defer tables for integration docs
 
 ### Why This Phase Exists
 
-The 2025-01-20 v0.6.0 sync skipped investigation because "0 breaking changes" was treated as a green light. This caused:
+The 2025-01-20 v0.6.0 sync skipped evaluation because "0 breaking changes" was treated as a green light. This caused:
 - Marketplace plugin merged without review (Vercel-branded, not navigator-appropriate)
 - 8 new features not assessed for navigator integration
 - No documentation created before merge
-- User had to request investigation retroactively
 
-### Items Requiring Explicit Decision
+### Evaluation Output
 
-These additions should ALWAYS be flagged:
+The `upstream-evaluation` skill produces:
+- **Adopt** table: Features to add with Navigator naming and schema changes
+- **Skip** table: Features to exclude with rationale
+- **Defer** table: Features to revisit later
+- **Extend existing** table: Changes to existing actions
 
-| Item | Question |
-|------|----------|
-| **Plugins** (`.claude-plugin/`) | Include, exclude, or create navigator version? |
-| **New commands** | Should navigator expose this action? What schema changes? |
-| **Protocol/type changes** | How do these affect navigator's schema? |
-| **CLI flags** | Should navigator CLI mirror these? |
-
-### Steps
-
-1. **Dispatch analyst subagent**
-   ```
-   Task tool → baselayer:analyst
-   Prompt: "Analyze the upstream commits. For each additive change:
-   - What does it do?
-   - Should navigator expose it?
-   - What schema/code changes needed?
-   Flag any plugins or significant additions for user decision."
-   ```
-
-2. **Review analyst findings**
+2. **Review evaluation output**
    - Ensure all new commands identified
    - Ensure plugins flagged
    - Ensure schema changes documented
