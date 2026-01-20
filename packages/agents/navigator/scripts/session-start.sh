@@ -12,7 +12,7 @@ if command -v curl >/dev/null 2>&1; then
   if curl -fsSL "${NAVIGATOR_SERVER_URL}/health" >/dev/null 2>&1; then
     echo "Navigator browser server ready. Use via CLI (nav) or MCP."
   else
-    echo "Navigator server not running. Start with: nav serve"
+    echo "Navigator server not running. Start with: nav server start"
   fi
 fi
 

@@ -2,80 +2,50 @@
 
 Consolidate and improve CLI command structure for consistency and discoverability.
 
-## Command Renames
+## Command Renames ✅
 
-| Current | Proposed | Rationale |
-|---------|----------|-----------|
-| `init` | `install` | Clearer intent - installs Claude plugin |
-| `tidy` | `clean` | Standard convention |
+| Old | New | Status |
+|-----|-----|--------|
+| `init` | `install --plugin claude` | ✅ Implemented |
+| `tidy` | `clean` | ✅ Implemented |
 
-## Command Groupings
+## Command Groupings ✅
 
-### `server` subcommands
+### `server` subcommands ✅
 
-Consolidate server management under `nav server`:
+| Old | New | Status |
+|-----|-----|--------|
+| `serve` | `server start` | ✅ Implemented |
+| `status` | `server status` | ✅ Implemented |
+| (new) | `server stop` | ✅ Implemented |
 
-| Current | Proposed |
-|---------|----------|
-| `serve` | `server start` |
-| `status` | `server status` |
-| (new) | `server stop` |
+### `tab` subcommands ✅
 
-### `tab` subcommands
-
-Consolidate tab management under `nav tab`:
-
-| Current | Proposed |
-|---------|----------|
-| `tabs` | `tab list` |
-| `tab <id>` | `tab <id>` (shorthand) or `tab switch <id>` |
-| `new-tab [url]` | `tab new [url]` |
-| `close-tab <id>` | `tab close <id>` |
+| Old | New | Status |
+|-----|-----|--------|
+| `tabs` | `tab list` | ✅ Implemented |
+| `tab <id>` | `tab <id>` or `tab switch <id>` | ✅ Implemented |
+| `new-tab [url]` | `tab new [url]` | ✅ Implemented |
+| `close-tab <id>` | `tab close <id>` | ✅ Implemented |
 
 Note: `nav tab <id>` works as shorthand for `nav tab switch <id>` since switching is the most common action.
 
-### `mark` subcommands
+### `mark` subcommands ✅
 
-Consolidate marker management under `nav mark`:
-
-| Current | Proposed |
-|---------|----------|
-| `mark` | `mark save` |
-| `markers` | `mark list` |
-| `marker <id>` | `mark get <id>` |
-| `marker-compare <id1> <id2>` | `mark diff <id1> <id2>` |
-| `marker-delete <id>` | `mark remove <id>` |
+| Old | New | Status |
+|-----|-----|--------|
+| `mark` | `mark save` | ✅ Implemented |
+| `markers` | `mark list` | ✅ Implemented |
+| `marker <id>` | `mark get <id>` | ✅ Implemented |
+| `marker-compare <id1> <id2>` | `mark diff <id1> <id2>` | ✅ Implemented |
+| `marker-delete <id>` | `mark remove <id>` | ✅ Implemented |
 
 ## Summary
 
-### Before (18 top-level commands)
+### Current Structure
 
 ```
-nav init
-nav serve
-nav status
-nav tabs
-nav tab
-nav new-tab
-nav close-tab
-nav mark
-nav markers
-nav marker
-nav marker-compare
-nav marker-delete
-nav tidy
-nav doctor
-nav update
-nav uninstall
-nav watch
-nav session
-nav steps
-```
-
-### After (11 top-level commands + subcommands)
-
-```
-nav install
+nav install --plugin claude
 nav server start|stop|status
 nav tab list|switch|new|close
 nav mark save|list|get|diff|remove
@@ -86,6 +56,8 @@ nav uninstall
 nav watch
 nav session
 nav steps
+nav mcp
+nav action
 ```
 
 ## Ergonomic Improvements

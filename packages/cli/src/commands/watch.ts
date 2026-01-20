@@ -335,7 +335,7 @@ async function ensureServerReady(client: NavigatorClient): Promise<boolean> {
 				err.message.includes('fetch failed'))
 		) {
 			console.error('Navigator server is not running.')
-			console.error('Start it with: nav serve')
+			console.error('Start it with: nav server start')
 			process.exitCode = 1
 			return false
 		}

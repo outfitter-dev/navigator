@@ -1,5 +1,5 @@
 /**
- * Tidy Command
+ * Clean Command
  *
  * Cleans up old Navigator sessions.
  */
@@ -255,12 +255,12 @@ function reportDeletionResults(results: {
 }
 
 // ============================================================================
-// Tidy Command
+// Clean Command
 // ============================================================================
 
-export function registerTidyCommand(program: Command): void {
+export function registerCleanCommand(program: Command): void {
 	program
-		.command('tidy')
+		.command('clean')
 		.description('Clean up old Navigator sessions')
 		.option(
 			'-d, --days <number>',

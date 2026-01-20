@@ -60,7 +60,7 @@ nav steps                     # List recent steps
 Install the navigator plugin:
 
 ```bash
-nav init
+nav install --plugin claude
 ```
 
 Then use the `navigator` tool with action routing:

@@ -32,7 +32,7 @@ nav --help
 nav open https://example.com
 nav snap -i                    # Interactive elements only
 nav click @e1                  # Click element ref
-nav init                       # Install Claude plugin
+nav install --plugin claude    # Install Claude plugin
 ```
 
 ## Architecture

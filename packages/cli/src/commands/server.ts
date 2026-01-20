@@ -1,9 +1,12 @@
 /**
- * Status Command
+ * Server Commands
  *
- * Shows runtime status of the Navigator system.
+ * nav server start|status|stop
  */
 
+import { spawn } from 'node:child_process'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Command } from 'commander'
 import type { NavigatorClient } from '../client.js'
 
@@ -40,7 +43,7 @@ interface SessionResponse {
 }
 
 // ============================================================================
-// Status Command
+// Status Helpers
 // ============================================================================
 
 function isConnectionError(err: unknown): boolean {
@@ -139,11 +142,66 @@ async function logSessionStatus(
 	}
 }
 
-export function registerStatusCommand(
+// ============================================================================
+// Server Commands
+// ============================================================================
+
+export function registerServerCommands(
 	program: Command,
 	getClient: () => NavigatorClient,
 ): void {
-	program
+	const server = program.command('server').description('Server management')
+
+	// nav server start
+	server
+		.command('start')
+		.description('Start Navigator browser server')
+		.option('--port <number>', 'Server port (default: 9334)')
+		.action(async (options) => {
+			const port = options.port ?? process.env.NAVIGATOR_PORT ?? '9334'
+			process.env.PORT = port
+
+			// Import server package - auto-starts on import
+			try {
+				await import('@outfitter/navigator-server')
+				// Server is now running, keep process alive
+				await new Promise(() => {})
+			} catch (err) {
+				// Fallback: spawn server from relative path (dev mode)
+				const serverPath = join(
+					dirname(fileURLToPath(import.meta.url)),
+					'..',
+					'..',
+					'..',
+					'server',
+					'src',
+					'index.ts',
+				)
+
+				console.log(`Starting Navigator server on port ${port}...`)
+				const child = spawn('bun', ['run', serverPath], {
+					stdio: 'inherit',
+					env: { ...process.env, PORT: port },
+				})
+
+				child.on('error', (spawnErr) => {
+					console.error('Failed to start server:', spawnErr.message)
+					process.exitCode = 1
+				})
+
+				child.on('exit', (code) => {
+					process.exitCode = code ?? 0
+				})
+
+				// Forward signals to child
+				for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+					process.on(signal, () => child.kill(signal))
+				}
+			}
+		})
+
+	// nav server status
+	server
 		.command('status')
 		.description('Show Navigator runtime status')
 		.action(async () => {
@@ -157,5 +215,36 @@ export function registerStatusCommand(
 			}
 
 			await logSessionStatus(client, serverStatus.mode)
+		})
+
+	// nav server stop
+	server
+		.command('stop')
+		.description('Stop Navigator server')
+		.action(async () => {
+			const client = getClient()
+
+			try {
+				const response = await fetch(`${client.serverUrl}/shutdown`, {
+					method: 'POST',
+				})
+
+				if (response.ok) {
+					console.log('Server stopped')
+				} else {
+					console.log(`Failed to stop server (HTTP ${response.status})`)
+					process.exitCode = 1
+				}
+			} catch (err) {
+				if (isConnectionError(err)) {
+					console.log('Server is not running')
+				} else {
+					console.error(
+						'Error:',
+						err instanceof Error ? err.message : String(err),
+					)
+					process.exitCode = 1
+				}
+			}
 		})
 }

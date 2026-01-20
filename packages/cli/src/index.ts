@@ -16,19 +16,19 @@ import {
 } from '@outfitter/navigator-core/logging'
 import { Command } from 'commander'
 import { type ClientOptions, createClient } from './client.js'
+import { registerCleanCommand } from './commands/clean.js'
 import { registerDisplayCommands } from './commands/display.js'
 import { registerDoctorCommand } from './commands/doctor.js'
 import { registerInteractionCommands } from './commands/interaction.js'
 import { registerMarkerCommands } from './commands/markers.js'
 import { registerNavigationCommands } from './commands/navigation.js'
+import { registerServerCommands } from './commands/server.js'
 import { registerSessionCommands } from './commands/session.js'
-import { registerStatusCommand } from './commands/status.js'
 import { registerTabCommands } from './commands/tabs.js'
-import { registerTidyCommand } from './commands/tidy.js'
 import { registerUninstallCommand } from './commands/uninstall.js'
 import { registerUpdateCommand } from './commands/update.js'
 import { registerWatchCommand } from './commands/watch.js'
-import { runInit } from './init.js'
+import { runInstall } from './install.js'
 
 // ============================================================================
 // Version
@@ -95,17 +95,17 @@ registerInteractionCommands(program, getClient)
 // Display: viewport, color-scheme
 registerDisplayCommands(program, getClient)
 
-// Markers: mark, markers, marker
+// Markers: mark save|list|get|diff|remove
 registerMarkerCommands(program, getClient)
 
-// Tabs: tabs, tab, new-tab, close-tab
+// Tabs: tab list|switch|new|close
 registerTabCommands(program, getClient)
 
 // Session: session, steps
 registerSessionCommands(program, getClient)
 
-// Status: status
-registerStatusCommand(program, getClient)
+// Server: server start|status|stop
+registerServerCommands(program, getClient)
 
 // Watch: watch
 registerWatchCommand(program, getClient)
@@ -113,8 +113,8 @@ registerWatchCommand(program, getClient)
 // Doctor: doctor (no client needed)
 registerDoctorCommand(program)
 
-// Tidy: tidy (no client needed)
-registerTidyCommand(program)
+// Clean: clean (no client needed)
+registerCleanCommand(program)
 
 // Update: update (no client needed)
 registerUpdateCommand(program)
@@ -126,13 +126,20 @@ registerUninstallCommand(program)
 // Special Commands
 // ============================================================================
 
-// nav init
+// nav install --plugin <name>
 program
-	.command('init')
-	.description('Install Navigator Claude plugin')
+	.command('install')
+	.description('Install Navigator components')
+	.requiredOption('--plugin <name>', 'Plugin to install (claude)')
 	.option('--debug', 'Show debug output')
 	.action(async (options) => {
-		const result = await runInit(process.cwd(), { debug: options.debug })
+		if (options.plugin !== 'claude') {
+			console.error(`Unknown plugin: ${options.plugin}`)
+			console.error('Available plugins: claude')
+			process.exitCode = 1
+			return
+		}
+		const result = await runInstall(process.cwd(), { debug: options.debug })
 		if (!result.success) {
 			process.exitCode = 1
 		}
@@ -161,55 +168,7 @@ program
 		}
 	})
 
-// nav serve - start the navigator server
-program
-	.command('serve')
-	.description('Start Navigator browser server')
-	.option('--port <number>', 'Server port (default: 9334)')
-	.action(async (options) => {
-		const port = options.port ?? process.env.NAVIGATOR_PORT ?? '9334'
-		process.env.PORT = port
-
-		// Import server package - auto-starts on import
-		try {
-			await import('@outfitter/navigator-server')
-			// Server is now running, keep process alive
-			await new Promise(() => {})
-		} catch (err) {
-			// Fallback: spawn server from relative path (dev mode)
-			const { spawn } = await import('node:child_process')
-			const serverPath = join(
-				dirname(fileURLToPath(import.meta.url)),
-				'..',
-				'..',
-				'server',
-				'src',
-				'index.ts',
-			)
-
-			console.log(`Starting Navigator server on port ${port}...`)
-			const child = spawn('bun', ['run', serverPath], {
-				stdio: 'inherit',
-				env: { ...process.env, PORT: port },
-			})
-
-			child.on('error', (spawnErr) => {
-				console.error('Failed to start server:', spawnErr.message)
-				process.exitCode = 1
-			})
-
-			child.on('exit', (code) => {
-				process.exitCode = code ?? 0
-			})
-
-			// Forward signals to child
-			for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-				process.on(signal, () => child.kill(signal))
-			}
-		}
-	})
-
-// nav mcp (placeholder for MCP server start)
+// nav mcp
 program
 	.command('mcp')
 	.description('Start MCP server')
