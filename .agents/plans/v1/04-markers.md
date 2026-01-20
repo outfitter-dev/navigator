@@ -1,5 +1,7 @@
 # 04 - Markers
 
+> **Historical Document**: This plan was written during initial development. The actual implementation may differ. See `CLAUDE.md` for current command reference.
+
 Implement the marker system for annotating browser views.
 
 ## Overview

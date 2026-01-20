@@ -75,7 +75,7 @@ Element refs use format `e{index}_{version}` (e.g., `e42_1`). Shorthand `e42` im
 
 **Workflow note**: Refs point to DOM elements by index. After page-changing actions (click, navigate), DOM may change - take a fresh snap if refs fail. Use shorthand (`e1`) to skip version validation.
 
-### Action Categories
+### Action Categories (MCP)
 
 Actions are validated via Zod discriminated union in `packages/core/src/schema/index.ts`:
 - Navigation: navigate, back, forward, reload

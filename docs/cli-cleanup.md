@@ -30,15 +30,15 @@ Consolidate and improve CLI command structure for consistency and discoverabilit
 
 Note: `nav tab <id>` works as shorthand for `nav tab switch <id>` since switching is the most common action.
 
-### `mark` subcommands ✅
+### `marker` subcommands ✅
 
 | Old | New | Status |
 |-----|-----|--------|
-| `mark` | `mark save` | ✅ Implemented |
-| `markers` | `mark list` | ✅ Implemented |
-| `marker <id>` | `mark get <id>` | ✅ Implemented |
-| `marker-compare <id1> <id2>` | `mark diff <id1> <id2>` | ✅ Implemented |
-| `marker-delete <id>` | `mark remove <id>` | ✅ Implemented |
+| `mark` | `marker set` | ✅ Implemented |
+| `markers` | `marker list` | ✅ Implemented |
+| `marker <id>` | `marker read <id>` | ✅ Implemented |
+| `marker-compare <id1> <id2>` | `marker compare <id1> <id2>` | ✅ Implemented |
+| `marker-delete <id>` | `marker remove <id>` | ✅ Implemented |
 
 ## Summary
 
@@ -48,7 +48,7 @@ Note: `nav tab <id>` works as shorthand for `nav tab switch <id>` since switchin
 nav install --plugin claude
 nav server start|stop|status
 nav tab list|switch|new|close
-nav mark save|list|get|diff|remove
+nav marker set|list|read|compare|remove
 nav clean
 nav doctor
 nav update
