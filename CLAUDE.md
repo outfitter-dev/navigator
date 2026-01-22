@@ -43,6 +43,8 @@ Navigator is a unified browser control system for AI agents. Single-action MCP p
 
 Navigator extends [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser), adding paired mode, markers, sessions, and UX enhancements. We maintain a fork at [@outfitter/agent-browser](https://github.com/outfitter-dev/agent-browser) and contribute general-purpose improvements back upstream.
 
+**Keeping the fork current:** Use `/flow:agent-browser` to sync with upstream. It automatically detects changes, handles clean updates, and guides through breaking changes with subagent dispatch. See also `/agent-browser:check`, `/agent-browser:sync`, `/agent-browser:update`.
+
 ### Packages
 
 ```

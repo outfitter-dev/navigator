@@ -26,3 +26,4 @@ coverage/
 
 # Logs
 *.log
+.agent-browser/
