@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
+import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import {
 	type BrowserMode,
@@ -58,10 +59,36 @@ function getPortForSession(session: string): number {
 	return 49_152 + (Math.abs(hash) % 16_383)
 }
 
+/**
+ * Get the base directory for socket/pid files.
+ * Matches upstream agent-browser logic for compatibility.
+ * Priority: AGENT_BROWSER_SOCKET_DIR > XDG_RUNTIME_DIR > ~/.agent-browser > tmpdir
+ */
+function getSocketDir(): string {
+	// 1. Explicit override
+	if (process.env.AGENT_BROWSER_SOCKET_DIR) {
+		return process.env.AGENT_BROWSER_SOCKET_DIR
+	}
+
+	// 2. XDG_RUNTIME_DIR (Linux standard)
+	if (process.env.XDG_RUNTIME_DIR) {
+		return path.join(process.env.XDG_RUNTIME_DIR, 'agent-browser')
+	}
+
+	// 3. Home directory fallback (like Docker Desktop's ~/.docker/run/)
+	const homeDir = os.homedir()
+	if (homeDir) {
+		return path.join(homeDir, '.agent-browser')
+	}
+
+	// 4. Last resort: temp dir
+	return path.join(os.tmpdir(), 'agent-browser')
+}
+
 function getSocketPath(session: string): string {
 	return os.platform() === 'win32'
 		? String(getPortForSession(session))
-		: `${os.tmpdir()}/agent-browser-${session}.sock`
+		: path.join(getSocketDir(), `${session}.sock`)
 }
 
 function resolveAgentBrowserBin(): string {

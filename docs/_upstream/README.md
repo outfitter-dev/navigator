@@ -18,6 +18,7 @@ vercel-labs/agent-browser (upstream)
 
 | Version | Date | Status | Breaking Changes | Notes |
 |---------|------|--------|------------------|-------|
+| [v0.6.1](./v0.6.1/integration.md) | 2026-01-22 | **Synced** | 1 (socket path) | Download actions, launch args, socket fix applied |
 | [v0.6.0](./v0.6.0/integration.md) | 2025-01-20 | Fork synced, pending schema updates | 0 | `styles`, `recording*`, `proxy` actions |
 | — | — | Initial | — | Initial setup |
 
@@ -30,10 +31,10 @@ Each version gets its own directory:
 ```
 docs/_upstream/
 ├── README.md           # This file
-└── v0.6.0/             # Example version
-    ├── integration.md  # Navigator-specific integration plan
-    ├── changes.md      # Raw changelog from upstream
-    └── status.md       # Implementation progress tracker
+├── v0.6.0/             # Previous version
+│   └── integration.md
+└── v0.6.1/             # Current pending
+    └── integration.md  # Navigator-specific integration plan
 ```
 
 ## Workflow
