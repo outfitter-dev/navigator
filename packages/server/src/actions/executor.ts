@@ -441,6 +441,15 @@ export class ActionExecutor {
 					action.files,
 					action.tab,
 				)
+			case 'download':
+				return this.download(
+					action.ref,
+					action.selector,
+					action.path,
+					action.wait,
+					action.timeout,
+					action.tab,
+				)
 			case 'dialog':
 				return this.dialog(action.handler, action.text, action.tab)
 
@@ -556,6 +565,7 @@ export class ActionExecutor {
 			'check',
 			'uncheck',
 			'upload',
+			'download',
 			'dialog',
 			'waitFor',
 			'waitForNavigation',
@@ -1414,6 +1424,81 @@ export class ActionExecutor {
 			return { success: false, error: response.error ?? 'Upload failed' }
 		}
 		return { success: true }
+	}
+
+	private async download(
+		ref: string | undefined,
+		selector: string | undefined,
+		path: string,
+		_wait = true, // Kept for schema compatibility; agent-browser always waits
+		_timeout?: number, // Kept for schema compatibility; handled by agent-browser
+		tab?: TabRef,
+	): Promise<ActionResult> {
+		const target = this.resolveSelector(ref, selector)
+		if (!target) {
+			return createError(
+				'download requires ref or selector',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide ref from snap (e.g., "e42") or CSS selector',
+			)
+		}
+
+		// Pre-validate element ref before sending to agent-browser
+		if (ref) {
+			const validation = this.validateElementRef(ref)
+			if (!validation.valid) {
+				return this.createElementRefError(ref)
+			}
+		}
+
+		// Trigger the download by clicking the element
+		const downloadResponse = await this.sendCommand(
+			{ action: 'download', selector: target, path },
+			tab,
+		)
+		if (!downloadResponse.success) {
+			const errorMsg = downloadResponse.error ?? 'Download failed'
+			const lowerError = errorMsg.toLowerCase()
+
+			let errorCode: ErrorCode = ErrorCode.ELEMENT_NOT_FOUND
+			let retryable = true
+			let recovery = 'Take a fresh snap to get updated element references'
+
+			if (lowerError.includes('not visible') || lowerError.includes('hidden')) {
+				errorCode = ErrorCode.ELEMENT_NOT_VISIBLE
+				recovery =
+					'Element exists but is hidden - wait for visibility or scroll into view'
+			} else if (
+				lowerError.includes('not interactable') ||
+				lowerError.includes('pointer events')
+			) {
+				errorCode = ErrorCode.ELEMENT_NOT_INTERACTABLE
+				recovery =
+					'Element is covered or disabled - wait or click covering element first'
+			} else if (
+				lowerError.includes('stale') ||
+				lowerError.includes('detached')
+			) {
+				errorCode = ErrorCode.STALE_REF
+				recovery = 'Element was removed from DOM - take a new snap and retry'
+			} else if (
+				lowerError.includes('invalid selector') ||
+				lowerError.includes('syntax error')
+			) {
+				errorCode = ErrorCode.SELECTOR_INVALID
+				retryable = false
+				recovery = 'Check selector syntax - use CSS or ref from snap'
+			}
+
+			return createError(errorMsg, errorCode, retryable, recovery)
+		}
+
+		// Note: agent-browser's handleDownload already waits for the download
+		// event and saves the file before returning, so no additional wait needed.
+		// The `wait` parameter is accepted for API compatibility but has no effect.
+
+		return { success: true, extractedContent: `Downloaded to ${path}` }
 	}
 
 	private async dialog(
@@ -2476,6 +2561,7 @@ export class ActionExecutor {
 			case 'check':
 			case 'uncheck':
 			case 'upload':
+			case 'download':
 			case 'waitFor':
 				return buildResult(action.ref, action.selector, action.tab)
 			case 'scroll':
@@ -2532,6 +2618,7 @@ export class ActionExecutor {
 			case 'check':
 			case 'uncheck':
 			case 'upload':
+			case 'download':
 				return action.ref ?? action.selector
 			case 'press':
 				return action.key

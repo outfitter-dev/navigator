@@ -21,7 +21,8 @@ export function registerTabCommands(
 	const tab = program.command('tab').description('Tab management')
 
 	// nav tab list
-	tab.command('list')
+	tab
+		.command('list')
 		.description('List open tabs')
 		.action(async () => {
 			const client = getClient()
@@ -54,7 +55,8 @@ export function registerTabCommands(
 
 	// nav tab <id> (shorthand for switch)
 	// nav tab switch <id>
-	tab.command('switch <id>')
+	tab
+		.command('switch <id>')
 		.description('Switch to tab')
 		.action(async (id: string) => {
 			const client = getClient()
@@ -71,7 +73,8 @@ export function registerTabCommands(
 		})
 
 	// nav tab new [url]
-	tab.command('new [url]')
+	tab
+		.command('new [url]')
 		.description('Open new tab')
 		.action(async (url?: string) => {
 			const client = getClient()
@@ -85,7 +88,8 @@ export function registerTabCommands(
 		})
 
 	// nav tab close <id>
-	tab.command('close <id>')
+	tab
+		.command('close <id>')
 		.description('Close tab')
 		.action(async (id: string) => {
 			const client = getClient()
@@ -102,24 +106,23 @@ export function registerTabCommands(
 		})
 
 	// Default action: nav tab <id> → switch to tab
-	tab.argument('[id]', 'Tab ID to switch to')
-		.action(async (id?: string) => {
-			if (!id) {
-				// No ID provided, show help
-				tab.outputHelp()
-				return
-			}
+	tab.argument('[id]', 'Tab ID to switch to').action(async (id?: string) => {
+		if (!id) {
+			// No ID provided, show help
+			tab.outputHelp()
+			return
+		}
 
-			const client = getClient()
+		const client = getClient()
 
-			// Parse as number if it looks like one, otherwise use string
-			const ref = /^\d+$/.test(id) ? Number(id) : id
+		// Parse as number if it looks like one, otherwise use string
+		const ref = /^\d+$/.test(id) ? Number(id) : id
 
-			await client.execute({
-				action: 'tab',
-				ref,
-			})
-
-			console.log('Switched to tab:', id)
+		await client.execute({
+			action: 'tab',
+			ref,
 		})
+
+		console.log('Switched to tab:', id)
+	})
 }

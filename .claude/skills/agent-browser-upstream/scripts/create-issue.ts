@@ -16,8 +16,8 @@
  * The markdown body (after frontmatter) becomes the issue body.
  */
 
-import { $ } from 'bun'
 import { parseArgs } from 'util'
+import { $ } from 'bun'
 import { parse as parseYaml } from 'yaml'
 
 interface IssueFrontmatter {
@@ -37,9 +37,7 @@ function parseFrontmatter(content: string): {
 	const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
 
 	if (!match) {
-		throw new Error(
-			'No YAML frontmatter found. File must start with ---'
-		)
+		throw new Error('No YAML frontmatter found. File must start with ---')
 	}
 
 	const [, yamlContent, body] = match
@@ -56,7 +54,7 @@ async function createIssue(
 	title: string,
 	body: string,
 	labels: string[] = [],
-	dryRun = false
+	dryRun = false,
 ): Promise<string> {
 	const labelArgs = labels.length > 0 ? ['--label', labels.join(',')] : []
 
@@ -72,7 +70,8 @@ async function createIssue(
 	}
 
 	// Create the issue using gh CLI
-	const result = await $`gh issue create --title ${title} --body ${body} ${labelArgs}`.text()
+	const result =
+		await $`gh issue create --title ${title} --body ${body} ${labelArgs}`.text()
 
 	// gh issue create returns the URL of the created issue
 	return result.trim()

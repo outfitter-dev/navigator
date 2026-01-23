@@ -174,6 +174,16 @@ const uploadAction = z.object({
 	tab: tabRefSchema.optional(),
 })
 
+const downloadAction = z.object({
+	action: z.literal('download'),
+	ref: z.string().regex(elementRefPattern).optional(),
+	selector: z.string().optional(),
+	path: z.string(),
+	wait: z.boolean().default(true),
+	timeout: z.number().optional(),
+	tab: tabRefSchema.optional(),
+})
+
 const dialogAction = z.object({
 	action: z.literal('dialog'),
 	handler: z.enum(['accept', 'dismiss', 'prompt', 'clear']),
@@ -376,6 +386,7 @@ const baseActionSchema = z.discriminatedUnion('action', [
 	checkAction,
 	uncheckAction,
 	uploadAction,
+	downloadAction,
 	dialogAction,
 	// Wait
 	waitForAction,
@@ -432,6 +443,7 @@ export type FindAction = z.infer<typeof findAction>
 export type CheckAction = z.infer<typeof checkAction>
 export type UncheckAction = z.infer<typeof uncheckAction>
 export type UploadAction = z.infer<typeof uploadAction>
+export type DownloadAction = z.infer<typeof downloadAction>
 export type DialogAction = z.infer<typeof dialogAction>
 export type ScreenshotAction = z.infer<typeof screenshotAction>
 

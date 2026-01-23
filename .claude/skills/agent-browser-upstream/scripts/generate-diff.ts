@@ -16,9 +16,9 @@
  * The SHA-based directory allows comparing multiple upstream versions.
  */
 
-import { $ } from 'bun'
+import { basename, dirname, join } from 'path'
 import { parseArgs } from 'util'
-import { dirname, join, basename } from 'path'
+import { $ } from 'bun'
 import { mkdir, rm } from 'fs/promises'
 
 const FORK_URL = 'git@github.com:outfitter-dev/agent-browser.git'
@@ -150,7 +150,8 @@ async function ensureAgentBrowserRepo(repoPath: string): Promise<void> {
 // Get version/tag for a ref
 async function getVersion(repo: string, ref: string): Promise<string> {
 	try {
-		const tag = await $`cd ${repo} && git describe --tags ${ref} 2>/dev/null`.text()
+		const tag =
+			await $`cd ${repo} && git describe --tags ${ref} 2>/dev/null`.text()
 		return tag.trim()
 	} catch {
 		const sha = await $`cd ${repo} && git rev-parse --short ${ref}`.text()
@@ -168,9 +169,10 @@ async function getSha(repo: string, ref: string): Promise<string> {
 async function getCommits(
 	repo: string,
 	base: string,
-	target: string
+	target: string,
 ): Promise<Commit[]> {
-	const result = await $`cd ${repo} && git log --format="%H|%s" ${base}..${target}`.text()
+	const result =
+		await $`cd ${repo} && git log --format="%H|%s" ${base}..${target}`.text()
 
 	if (!result.trim()) return []
 
@@ -181,7 +183,8 @@ async function getCommits(
 		const message = messageParts.join('|')
 
 		const body = await $`cd ${repo} && git log --format="%b" -1 ${sha}`.text()
-		const filesRaw = await $`cd ${repo} && git diff-tree --no-commit-id --name-only -r ${sha}`.text()
+		const filesRaw =
+			await $`cd ${repo} && git diff-tree --no-commit-id --name-only -r ${sha}`.text()
 		const files = filesRaw.trim().split('\n').filter(Boolean)
 
 		const parsed = parseConventionalCommit(message)
@@ -192,7 +195,8 @@ async function getCommits(
 			message,
 			type: parsed.type,
 			scope: parsed.scope,
-			breaking: parsed.breaking || body.toLowerCase().includes('breaking change'),
+			breaking:
+				parsed.breaking || body.toLowerCase().includes('breaking change'),
 			body: body.trim() || undefined,
 			files,
 			url: `https://github.com/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/commit/${sha}`,
@@ -217,7 +221,7 @@ async function fetchReleaseNotes(version: string): Promise<string | null> {
 							Accept: 'application/vnd.github.v3+json',
 							'User-Agent': 'navigator-agent-browser-sync',
 						},
-					}
+					},
 				)
 
 				if (response.ok) {
@@ -237,7 +241,7 @@ async function fetchReleaseNotes(version: string): Promise<string | null> {
 					Accept: 'application/vnd.github.v3+json',
 					'User-Agent': 'navigator-agent-browser-sync',
 				},
-			}
+			},
 		)
 
 		if (latestResponse.ok) {
@@ -256,10 +260,11 @@ async function getFileDiff(
 	repo: string,
 	base: string,
 	target: string,
-	filePath: string
+	filePath: string,
 ): Promise<string | null> {
 	try {
-		const diff = await $`cd ${repo} && git diff ${base}..${target} -- ${filePath}`.text()
+		const diff =
+			await $`cd ${repo} && git diff ${base}..${target} -- ${filePath}`.text()
 		return diff.trim() || null
 	} catch {
 		return null
@@ -267,7 +272,9 @@ async function getFileDiff(
 }
 
 // Find navigator files that import from agent-browser
-async function findNavigatorImpact(navigatorRoot: string): Promise<NavigatorImpact[]> {
+async function findNavigatorImpact(
+	navigatorRoot: string,
+): Promise<NavigatorImpact[]> {
 	const impacts: NavigatorImpact[] = []
 
 	try {
@@ -280,7 +287,7 @@ async function findNavigatorImpact(navigatorRoot: string): Promise<NavigatorImpa
 
 			// Extract import statements
 			const importMatches = content.matchAll(
-				/import\s+\{([^}]+)\}\s+from\s+['"]@outfitter\/agent-browser['"]/g
+				/import\s+\{([^}]+)\}\s+from\s+['"]@outfitter\/agent-browser['"]/g,
 			)
 			const imports: string[] = []
 			for (const match of importMatches) {
@@ -288,7 +295,7 @@ async function findNavigatorImpact(navigatorRoot: string): Promise<NavigatorImpa
 					...match[1]
 						.split(',')
 						.map((s) => s.trim())
-						.filter(Boolean)
+						.filter(Boolean),
 				)
 			}
 
@@ -359,11 +366,20 @@ Outputs to .agent-browser/analysis/<sha>/
 	const outputDir = join(agentBrowserRoot, 'analysis', shortSha)
 
 	// Get commits
-	const commits = await getCommits(agentBrowserPath, 'origin/main', 'upstream/main')
+	const commits = await getCommits(
+		agentBrowserPath,
+		'origin/main',
+		'upstream/main',
+	)
 
 	// Check if up to date
 	if (commits.length === 0) {
-		console.log(JSON.stringify({ upToDate: true, message: 'Fork is up to date with upstream' }))
+		console.log(
+			JSON.stringify({
+				upToDate: true,
+				message: 'Fork is up to date with upstream',
+			}),
+		)
 		return
 	}
 
@@ -372,7 +388,7 @@ Outputs to .agent-browser/analysis/<sha>/
 	const features = commits.filter((c) => c.type === 'feat' && !c.breaking)
 	const fixes = commits.filter((c) => c.type === 'fix')
 	const other = commits.filter(
-		(c) => !c.breaking && c.type !== 'feat' && c.type !== 'fix'
+		(c) => !c.breaking && c.type !== 'feat' && c.type !== 'fix',
 	)
 
 	// Find critical files changed
@@ -404,7 +420,7 @@ Outputs to .agent-browser/analysis/<sha>/
 	const navigatorImpact = await findNavigatorImpact(navigatorRoot)
 	await Bun.write(
 		join(outputDir, 'navigator-impact.json'),
-		JSON.stringify(navigatorImpact, null, 2)
+		JSON.stringify(navigatorImpact, null, 2),
 	)
 
 	// Generate summary
@@ -428,33 +444,44 @@ Outputs to .agent-browser/analysis/<sha>/
 		criticalFilesChanged,
 		navigatorFilesAffected: navigatorImpact.length,
 	}
-	await Bun.write(join(outputDir, 'summary.json'), JSON.stringify(summary, null, 2))
+	await Bun.write(
+		join(outputDir, 'summary.json'),
+		JSON.stringify(summary, null, 2),
+	)
 
 	// Write all commits
-	await Bun.write(join(outputDir, 'commits.json'), JSON.stringify(commits, null, 2))
+	await Bun.write(
+		join(outputDir, 'commits.json'),
+		JSON.stringify(commits, null, 2),
+	)
 
 	// Write by category
 	await Bun.write(
 		join(outputDir, 'by-category/breaking.json'),
-		JSON.stringify(breaking, null, 2)
+		JSON.stringify(breaking, null, 2),
 	)
 	await Bun.write(
 		join(outputDir, 'by-category/features.json'),
-		JSON.stringify(features, null, 2)
+		JSON.stringify(features, null, 2),
 	)
 	await Bun.write(
 		join(outputDir, 'by-category/fixes.json'),
-		JSON.stringify(fixes, null, 2)
+		JSON.stringify(fixes, null, 2),
 	)
 	await Bun.write(
 		join(outputDir, 'by-category/other.json'),
-		JSON.stringify(other, null, 2)
+		JSON.stringify(other, null, 2),
 	)
 
 	// Generate individual file diffs
 	console.error('Generating file diffs...')
 	for (const file of DIFF_FILES) {
-		const diff = await getFileDiff(agentBrowserPath, 'origin/main', 'upstream/main', file)
+		const diff = await getFileDiff(
+			agentBrowserPath,
+			'origin/main',
+			'upstream/main',
+			file,
+		)
 		if (diff) {
 			const filename = basename(file) + '.diff'
 			await Bun.write(join(outputDir, 'diffs', filename), diff)

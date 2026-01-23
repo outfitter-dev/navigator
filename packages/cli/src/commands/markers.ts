@@ -59,7 +59,8 @@ export function registerMarkerCommands(
 	const mark = program.command('mark').description('Marker management')
 
 	// nav mark save
-	mark.command('save')
+	mark
+		.command('save')
 		.description('Create marker at coordinates')
 		.option('-x <number>', 'X coordinate')
 		.option('-y <number>', 'Y coordinate')
@@ -96,7 +97,8 @@ export function registerMarkerCommands(
 		})
 
 	// nav mark list
-	mark.command('list')
+	mark
+		.command('list')
 		.description('List all markers')
 		.option('--md', 'Output as markdown')
 		.action(async (options) => {
@@ -119,7 +121,8 @@ export function registerMarkerCommands(
 		})
 
 	// nav mark get <id>
-	mark.command('get <id>')
+	mark
+		.command('get <id>')
 		.description('Get marker details')
 		.action(async (id: string) => {
 			const client = getClient()
@@ -133,7 +136,8 @@ export function registerMarkerCommands(
 		})
 
 	// nav mark diff <id1> <id2>
-	mark.command('diff <id1> <id2>')
+	mark
+		.command('diff <id1> <id2>')
 		.description('Compare two markers')
 		.action(async (id1: string, id2: string) => {
 			const client = getClient()
@@ -147,7 +151,8 @@ export function registerMarkerCommands(
 		})
 
 	// nav mark remove <id>
-	mark.command('remove <id>')
+	mark
+		.command('remove <id>')
 		.description('Delete a marker')
 		.action(async (id: string) => {
 			const client = getClient()

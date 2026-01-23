@@ -13,6 +13,7 @@ export {
 	type LoggingConfig,
 	type MarkersConfig,
 	type ModesConfig,
+	type ProxyConfig,
 	type ServerConfig,
 	type SessionConfig,
 	type ViewportConfig,

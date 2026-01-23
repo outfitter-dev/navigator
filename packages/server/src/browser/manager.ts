@@ -141,11 +141,13 @@ export class BrowserManager {
 		{ viewport: Viewport; colorScheme: ColorScheme }
 	>()
 	private ready = false
+	private readonly config: NavigatorConfig
 
 	constructor(
 		config: NavigatorConfig,
 		private readonly session: string,
 	) {
+		this.config = config
 		this.mode = config.browser.headless ? 'headless' : 'windowed'
 	}
 
@@ -294,11 +296,50 @@ export class BrowserManager {
 
 		if (!this.ready) {
 			log.debug`Launching browser ${{ mode: this.mode }}`
-			await this.sendRaw({
+
+			const launchOptions: Record<string, unknown> = {
 				action: 'launch',
 				headless: this.mode === 'headless',
 				viewport: { width: 1280, height: 720 },
-			})
+			}
+
+			const browserConfig = this.config.browser
+
+			// Custom browser arguments
+			if (browserConfig.browserArgs?.length) {
+				launchOptions.args = browserConfig.browserArgs
+			}
+
+			// Custom user agent
+			if (browserConfig.userAgent) {
+				launchOptions.userAgent = browserConfig.userAgent
+			}
+
+			// Persistent browser profile
+			if (browserConfig.profile) {
+				launchOptions.profile = browserConfig.profile
+			}
+
+			// Proxy configuration
+			if (browserConfig.proxy) {
+				launchOptions.proxy = {
+					server: browserConfig.proxy.server,
+					...(browserConfig.proxy.bypass && {
+						bypass: browserConfig.proxy.bypass,
+					}),
+				}
+			}
+
+			// CDP connection (port number or WebSocket URL)
+			if (browserConfig.cdp !== undefined) {
+				if (typeof browserConfig.cdp === 'number') {
+					launchOptions.cdp = browserConfig.cdp
+				} else {
+					launchOptions.cdpUrl = browserConfig.cdp
+				}
+			}
+
+			await this.sendRaw(launchOptions)
 			this.ready = true
 			log.info`Browser launched ${{ mode: this.mode }}`
 		}
