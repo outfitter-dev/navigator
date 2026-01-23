@@ -34,6 +34,7 @@ Run Navigator CLI tests.
 Categories:
   edge-cases         Invalid refs, missing args, exit codes
   error-taxonomy     All 11 error codes
+  markers            Marker creation, filtering, resolution
 
 Options:
   --all              Run all test categories
@@ -244,6 +245,60 @@ run_error_taxonomy() {
   finalize_category
 }
 
+run_markers() {
+  setup_nav_category "markers"
+  print_info "Running markers tests..."
+
+  nav open "$TEST_URL" >/dev/null 2>&1
+
+  # Take a snap to get element refs
+  nav snap -i >/dev/null 2>&1
+
+  # Test 1: Create marker from ref
+  run_nav_test 1 "Marker from ref" "mark save --ref e1" "Created marker" "false"
+
+  # Test 2: Create marker with tags
+  run_nav_test 2 "Marker with tags" "mark save --ref e2 --tags test,v1" "Created marker" "false"
+
+  # Test 3: Create marker with note
+  run_nav_test 3 "Marker with note" "mark save --ref e3 --note 'Test note'" "Created marker" "false"
+
+  # Test 4: List markers
+  run_nav_test 4 "List markers" "mark list" "Markers:" "false"
+
+  # Test 5: List markers filtered by tag
+  run_nav_test 5 "List markers by tag" "mark list --tags test" "Markers:" "false"
+
+  # Test 6: Create coordinate-based marker
+  run_nav_test 6 "Coordinate marker" "mark save -x 100 -y 200" "Created marker" "false"
+
+  # Test 7: Create region marker
+  run_nav_test 7 "Region marker" "mark save -x 50 -y 50 --width 100 --height 50" "Created marker" "false"
+
+  # Test 8: Invalid ref error
+  run_nav_test 8 "Invalid ref error" "mark save --ref e99999" "ELEMENT_NOT_FOUND" "true"
+
+  # Test 9: Get marker details (custom - need marker ID)
+  local marker_id
+  marker_id=$(nav mark list 2>&1 | grep -oE '[a-f0-9]{8}' | head -1)
+  if [[ -n "$marker_id" ]]; then
+    local get_output
+    get_output=$(nav mark get "$marker_id" 2>&1)
+    if echo "$get_output" | grep -q '"id"'; then
+      record_custom_result 9 "Get marker details" "PASS" "Got marker JSON"
+    else
+      record_custom_result 9 "Get marker details" "FAIL" "No JSON returned"
+    fi
+  else
+    record_custom_result 9 "Get marker details" "WARN" "No markers to get"
+  fi
+
+  # Test 10: Markdown output
+  run_nav_test 10 "Markdown output" "mark list --md" "Marker|marker" "false"
+
+  finalize_category
+}
+
 # ============================================================================
 # Main
 # ============================================================================
@@ -283,10 +338,13 @@ main() {
     run_edge_cases || exit_code=1
     echo ""
     run_error_taxonomy || exit_code=1
+    echo ""
+    run_markers || exit_code=1
   else
     case "$category" in
       edge-cases) run_edge_cases || exit_code=1 ;;
       error-taxonomy) run_error_taxonomy || exit_code=1 ;;
+      markers) run_markers || exit_code=1 ;;
       *) echo "Unknown category: $category"; usage; exit 1 ;;
     esac
   fi

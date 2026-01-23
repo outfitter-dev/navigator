@@ -39,6 +39,7 @@ bun run dev
 |----------|-------|-------------------|
 | `edge-cases` | 10 | Invalid refs, missing args, exit codes |
 | `error-taxonomy` | 5 | Error codes from PR #30 |
+| `markers` | 10 | Marker creation from refs, tags, filtering |
 
 ## Output
 

@@ -18,6 +18,18 @@ interface Marker {
 	}
 	note?: string
 	url?: string
+	tags?: string[]
+	sourceRef?: string
+	element?: {
+		selector?: string
+		elementName?: string
+		identity?: {
+			testId?: string
+			roleAndName?: string
+			selector?: string
+			textContent?: string
+		}
+	}
 	createdAt?: string
 }
 
@@ -61,15 +73,46 @@ export function registerMarkerCommands(
 	// nav mark save
 	mark
 		.command('save')
-		.description('Create marker at coordinates')
+		.description('Create marker from element ref or coordinates')
+		.option('-r, --ref <ref>', 'Element ref from snap (e.g., e5)')
 		.option('-x <number>', 'X coordinate')
 		.option('-y <number>', 'Y coordinate')
 		.option('-w, --width <number>', 'Width (for region)')
 		.option('-h, --height <number>', 'Height (for region)')
 		.option('-n, --note <text>', 'Note for marker')
+		.option('-t, --tags <tags>', 'Comma-separated tags')
 		.action(async (options) => {
 			const client = getClient()
 
+			// Parse tags if provided
+			const tags = options.tags
+				? options.tags.split(',').map((t: string) => t.trim())
+				: undefined
+
+			// If ref is provided, use ref-based marker creation
+			if (options.ref) {
+				const result = await client.execute<{ data?: Marker }>({
+					action: 'marker',
+					ref: options.ref,
+					note: options.note,
+					tags,
+				})
+
+				const marker = result.data
+				console.log('Created marker:', marker?.id ?? 'unknown')
+				if (marker?.element?.elementName) {
+					console.log('  Element:', marker.element.elementName)
+				}
+				if (marker?.geometry) {
+					console.log(
+						'  Region:',
+						`${marker.geometry.x},${marker.geometry.y} ${marker.geometry.width}x${marker.geometry.height}`,
+					)
+				}
+				return
+			}
+
+			// Otherwise use coordinate-based marker creation
 			const x = options.x ? Number(options.x) : 0
 			const y = options.y ? Number(options.y) : 0
 
@@ -90,6 +133,7 @@ export function registerMarkerCommands(
 				action: 'marker',
 				geometry,
 				note: options.note,
+				tags,
 			})
 
 			// Server returns marker in data field
@@ -101,14 +145,26 @@ export function registerMarkerCommands(
 		.command('list')
 		.description('List all markers')
 		.option('--md', 'Output as markdown')
+		.option('-t, --tags <tags>', 'Filter by comma-separated tags')
+		.option('-u, --url <pattern>', 'Filter by URL pattern')
+		.option('-r, --role <role>', 'Filter by element role')
 		.action(async (options) => {
 			const client = getClient()
+
+			// Build filter options
+			const tags = options.tags
+				? options.tags.split(',').map((t: string) => t.trim())
+				: undefined
+
 			const result = await client.execute<{
 				data?: Marker[]
 				extractedContent?: string
 			}>({
 				action: 'markers',
 				format: options.md ? 'markdown' : 'json',
+				tags,
+				url: options.url,
+				role: options.role,
 			})
 
 			if (options.md) {
@@ -148,6 +204,34 @@ export function registerMarkerCommands(
 			})
 
 			console.log(JSON.stringify(result, null, 2))
+		})
+
+	// nav mark resolve <id>
+	mark
+		.command('resolve <id>')
+		.description('Re-find a marked element on current page')
+		.action(async (id: string) => {
+			const client = getClient()
+			const result = await client.execute<{
+				data?: {
+					found: boolean
+					ref?: string
+					confidence?: string
+					method?: string
+				}
+			}>({
+				action: 'markerResolve',
+				id,
+			})
+
+			const data = result.data
+			if (data?.found) {
+				console.log(`Found element: ${data.ref}`)
+				console.log(`  Confidence: ${data.confidence}`)
+				console.log(`  Method: ${data.method}`)
+			} else {
+				console.log('Element not found on current page')
+			}
 		})
 
 	// nav mark remove <id>
