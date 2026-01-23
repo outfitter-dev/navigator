@@ -98,6 +98,7 @@ export class MarkerStore {
 			note: input.note,
 			screenshotPath,
 			viewport: input.viewport,
+			element: input.element,
 		}
 
 		// Validate
@@ -230,15 +231,15 @@ export class MarkerStore {
 	}
 
 	/**
-	 * Update a marker's note.
+	 * Update a marker.
 	 *
 	 * @param markerId - Marker UUID
-	 * @param updates - Updates to apply
+	 * @param updates - Updates to apply (note and/or element metadata)
 	 * @returns Updated marker or null if not found
 	 */
 	async update(
 		markerId: string,
-		updates: { note?: string },
+		updates: Partial<Pick<Marker, 'note' | 'element'>>,
 	): Promise<Marker | null> {
 		const marker = await this.get(markerId)
 		if (!marker) return null
@@ -246,6 +247,7 @@ export class MarkerStore {
 		const updated: Marker = {
 			...marker,
 			note: updates.note ?? marker.note,
+			element: updates.element ?? marker.element,
 		}
 
 		MarkerSchema.parse(updated)
@@ -254,6 +256,29 @@ export class MarkerStore {
 
 		log.debug`Marker updated ${{ id: markerId }}`
 		return updated
+	}
+
+	/**
+	 * Clear all markers in the session.
+	 *
+	 * @returns Number of markers deleted
+	 */
+	async clear(): Promise<number> {
+		if (!existsSync(this.markersDir)) return 0
+
+		const files = readdirSync(this.markersDir).filter((f) =>
+			f.endsWith('.json'),
+		)
+		let deleted = 0
+
+		for (const file of files) {
+			const markerId = file.replace('.json', '')
+			const success = await this.delete(markerId)
+			if (success) deleted++
+		}
+
+		log.debug`Markers cleared ${{ count: deleted }}`
+		return deleted
 	}
 
 	/**

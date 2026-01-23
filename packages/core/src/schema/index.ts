@@ -24,6 +24,12 @@ export {
 } from './action'
 
 export {
+	type AccessibilityInfo,
+	AccessibilityInfoSchema,
+	type BoundingBox,
+	BoundingBoxSchema,
+	type ElementMetadata,
+	ElementMetadataSchema,
 	type Geometry,
 	GeometrySchema,
 	type Marker,
