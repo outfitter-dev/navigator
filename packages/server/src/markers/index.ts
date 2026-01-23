@@ -4,6 +4,7 @@
 
 export {
 	MarkerStore,
+	type MarkerFilterOptions,
 	type MarkerGetOptions,
 	type MarkerWithScreenshot,
 } from './store'

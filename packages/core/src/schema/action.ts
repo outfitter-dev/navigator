@@ -260,25 +260,37 @@ const textAction = z.object({
 // Marker Actions
 // ============================================================================
 
+// Geometry schema for markers (point or region)
+const markerGeometrySchema = z.discriminatedUnion('type', [
+	z.object({ type: z.literal('point'), x: z.number(), y: z.number() }),
+	z.object({
+		type: z.literal('region'),
+		x: z.number(),
+		y: z.number(),
+		width: z.number(),
+		height: z.number(),
+	}),
+])
+
 const markerAction = z.object({
 	action: z.literal('marker'),
-	geometry: z.discriminatedUnion('type', [
-		z.object({ type: z.literal('point'), x: z.number(), y: z.number() }),
-		z.object({
-			type: z.literal('region'),
-			x: z.number(),
-			y: z.number(),
-			width: z.number(),
-			height: z.number(),
-		}),
-	]),
+	// Geometry is optional when ref is provided (derived from element bounding box)
+	geometry: markerGeometrySchema.optional(),
+	// Element ref from snap (e.g., "e5") - auto-captures element metadata
+	ref: z.string().regex(elementRefPattern).optional(),
 	tab: tabRefSchema.optional(),
 	note: z.string().optional(),
+	// Tags for filtering and organization
+	tags: z.array(z.string()).optional(),
 })
 
 const markersAction = z.object({
 	action: z.literal('markers'),
 	format: z.enum(['json', 'markdown']).optional(),
+	// Filter parameters
+	tags: z.array(z.string()).optional(),
+	url: z.string().optional(),
+	role: z.string().optional(),
 })
 
 const markerGetAction = z.object({
@@ -302,6 +314,12 @@ const markerCompareAction = z.object({
 	action: z.literal('markerCompare'),
 	id1: z.string().uuid(),
 	id2: z.string().uuid(),
+})
+
+const markerResolveAction = z.object({
+	action: z.literal('markerResolve'),
+	id: z.string().uuid(),
+	tab: tabRefSchema.optional(),
 })
 
 // ============================================================================
@@ -404,6 +422,7 @@ const baseActionSchema = z.discriminatedUnion('action', [
 	markerReadAction,
 	markerDeleteAction,
 	markerCompareAction,
+	markerResolveAction,
 	// Display
 	viewportAction,
 	colorSchemeAction,
@@ -426,6 +445,15 @@ export const ActionSchema = baseActionSchema.superRefine((data, ctx) => {
 			})
 		}
 	}
+	// Marker action requires either geometry or ref
+	if (data.action === 'marker') {
+		if (data.geometry === undefined && data.ref === undefined) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'Either geometry or ref is required',
+			})
+		}
+	}
 })
 
 export type Action = z.infer<typeof ActionSchema>
@@ -436,6 +464,8 @@ export type ClickAction = z.infer<typeof clickAction>
 export type TypeAction = z.infer<typeof typeAction>
 export type SnapAction = z.infer<typeof snapAction>
 export type MarkerAction = z.infer<typeof markerAction>
+export type MarkersAction = z.infer<typeof markersAction>
+export type MarkerResolveAction = z.infer<typeof markerResolveAction>
 export type ModeAction = z.infer<typeof modeAction>
 export type PressAction = z.infer<typeof pressAction>
 export type FillAction = z.infer<typeof fillAction>

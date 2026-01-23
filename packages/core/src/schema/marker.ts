@@ -91,6 +91,23 @@ export const AccessibilityInfoSchema = z.object({
 export type AccessibilityInfo = z.infer<typeof AccessibilityInfoSchema>
 
 /**
+ * Element identity for stable element re-finding across sessions.
+ * Used to locate the same element even after page changes.
+ */
+export const ElementIdentitySchema = z.object({
+	/** data-testid attribute (most stable) */
+	testId: z.string().optional(),
+	/** Role and accessible name combo (e.g., "button:Submit") */
+	roleAndName: z.string().optional(),
+	/** Playwright-compatible selector */
+	selector: z.string().optional(),
+	/** Element text content (truncated) */
+	textContent: z.string().optional(),
+})
+
+export type ElementIdentity = z.infer<typeof ElementIdentitySchema>
+
+/**
  * Element metadata for element-aware annotations.
  * Captures rich context about the annotated DOM element.
  */
@@ -111,6 +128,8 @@ export const ElementMetadataSchema = z.object({
 	accessibility: AccessibilityInfoSchema.optional(),
 	/** Computed styles snapshot (key visual properties) */
 	computedStyles: z.record(z.string()).optional(),
+	/** Stable identity for element re-finding */
+	identity: ElementIdentitySchema.optional(),
 })
 
 export type ElementMetadata = z.infer<typeof ElementMetadataSchema>
@@ -131,6 +150,10 @@ export const MarkerSchema = z.object({
 	viewport: MarkerViewportSchema.optional(),
 	// Element-aware annotation fields (from Agentation integration)
 	element: ElementMetadataSchema.optional(),
+	// Tags for filtering and organization
+	tags: z.array(z.string()).optional(),
+	// Original element ref from snap (e.g., "e5")
+	sourceRef: z.string().optional(),
 })
 
 export type Marker = z.infer<typeof MarkerSchema>
@@ -148,4 +171,8 @@ export interface MarkerCreateInput {
 	viewport?: MarkerViewport | undefined
 	/** Element metadata for element-aware annotations */
 	element?: ElementMetadata | undefined
+	/** Tags for filtering and organization */
+	tags?: string[] | undefined
+	/** Original element ref from snap (e.g., "e5") */
+	sourceRef?: string | undefined
 }

@@ -10,7 +10,10 @@
 import type {
 	Action,
 	ActionResult,
+	BoundingBox,
 	ColorScheme,
+	ElementIdentity,
+	ElementMetadata,
 	FindAction,
 	Geometry,
 	LocatorStrategy,
@@ -491,9 +494,24 @@ export class ActionExecutor {
 
 			// Markers
 			case 'marker':
-				return this.createMarker(action.geometry, action.tab, action.note)
-			case 'markers':
-				return this.listMarkers(action.format)
+				return this.createMarker(
+					action.geometry,
+					action.ref,
+					action.tab,
+					action.note,
+					action.tags,
+				)
+			case 'markers': {
+				// Build filters only with defined properties
+				const filters: { tags?: string[]; url?: string; role?: string } = {}
+				if (action.tags) filters.tags = action.tags
+				if (action.url) filters.url = action.url
+				if (action.role) filters.role = action.role
+				return this.listMarkers(
+					action.format,
+					Object.keys(filters).length > 0 ? filters : undefined,
+				)
+			}
 			case 'markerGet':
 				return this.getMarker(action.id, action.includeScreenshot)
 			case 'markerRead':
@@ -502,6 +520,8 @@ export class ActionExecutor {
 				return this.deleteMarker(action.id)
 			case 'markerCompare':
 				return this.compareMarkers(action.id1, action.id2)
+			case 'markerResolve':
+				return this.resolveMarker(action.id, action.tab)
 
 			// Display
 			case 'viewport':
@@ -2043,9 +2063,11 @@ export class ActionExecutor {
 	// ============================================================================
 
 	private async createMarker(
-		geometry: Geometry,
-		_tab?: TabRef,
+		geometry: Geometry | undefined,
+		ref: string | undefined,
+		tab?: TabRef,
 		note?: string,
+		tags?: string[],
 	): Promise<ActionResult> {
 		if (!this.markerStore) {
 			return createError(
@@ -2057,12 +2079,12 @@ export class ActionExecutor {
 		}
 
 		// Get page info
-		const urlResult = await this.browserManager.send<{ url: string }>({
-			action: 'url',
-		})
-		const titleResult = await this.browserManager.send<{ title: string }>({
-			action: 'title',
-		})
+		const urlResult = await this.withTab(tab, async () =>
+			this.browserManager.send<{ url: string }>({ action: 'url' }),
+		)
+		const titleResult = await this.withTab(tab, async () =>
+			this.browserManager.send<{ title: string }>({ action: 'title' }),
+		)
 		const url =
 			urlResult.success && urlResult.data?.url ? urlResult.data.url : ''
 		const title =
@@ -2070,53 +2092,47 @@ export class ActionExecutor {
 				? titleResult.data.title
 				: ''
 
-		// Capture screenshot of the marker area
-		let screenshot: string | undefined
-		if (geometry.type === 'point') {
-			const size = 100
-			const response = await this.browserManager.send<{ base64?: string }>({
-				action: 'screenshot',
-				clip: {
-					x: Math.max(0, geometry.x - size / 2),
-					y: Math.max(0, geometry.y - size / 2),
-					width: size,
-					height: size,
-				},
-				format: 'png',
-			})
-			if (response.success && response.data?.base64) {
-				screenshot = `data:image/png;base64,${response.data.base64}`
+		// If ref provided, get element info and derive geometry
+		let derivedGeometry: Geometry
+		let elementMetadata: ElementMetadata | undefined
+		let sourceRef: string | undefined
+
+		if (ref) {
+			sourceRef = ref
+			const elementInfo = await this.getElementInfoForMarker(ref, tab)
+			if (!elementInfo.success) {
+				return elementInfo.error
 			}
+			derivedGeometry = elementInfo.geometry
+			elementMetadata = elementInfo.metadata
+		} else if (geometry) {
+			derivedGeometry = geometry
 		} else {
-			const response = await this.browserManager.send<{ base64?: string }>({
-				action: 'screenshot',
-				clip: {
-					x: geometry.x,
-					y: geometry.y,
-					width: geometry.width,
-					height: geometry.height,
-				},
-				format: 'png',
-			})
-			if (response.success && response.data?.base64) {
-				screenshot = `data:image/png;base64,${response.data.base64}`
-			}
+			return createError(
+				'Either geometry or ref is required',
+				ErrorCode.SELECTOR_INVALID,
+				false,
+				'Provide geometry or element ref from snap',
+			)
 		}
+
+		// Capture screenshot of the marker area
+		const screenshot = await this.captureMarkerScreenshot(derivedGeometry, tab)
 
 		// Capture viewport context
 		let viewport: MarkerViewport | undefined
-		const viewportResult = await this.browserManager.send<{
-			result?: MarkerViewport
-		}>({
-			action: 'evaluate',
-			script: `() => ({
-				width: window.innerWidth,
-				height: window.innerHeight,
-				scrollX: window.scrollX,
-				scrollY: window.scrollY,
-				devicePixelRatio: window.devicePixelRatio,
-			})`,
-		})
+		const viewportResult = await this.withTab(tab, async () =>
+			this.browserManager.send<{ result?: MarkerViewport }>({
+				action: 'evaluate',
+				script: `() => ({
+					width: window.innerWidth,
+					height: window.innerHeight,
+					scrollX: window.scrollX,
+					scrollY: window.scrollY,
+					devicePixelRatio: window.devicePixelRatio,
+				})`,
+			}),
+		)
 		if (viewportResult.success && viewportResult.data?.result) {
 			viewport = viewportResult.data.result
 		}
@@ -2124,17 +2140,287 @@ export class ActionExecutor {
 		const marker = await this.markerStore.create({
 			url,
 			title,
-			geometry,
+			geometry: derivedGeometry,
 			note,
 			screenshot,
 			viewport,
+			element: elementMetadata,
+			tags,
+			sourceRef,
 		})
 
 		return { success: true, data: marker }
 	}
 
+	/**
+	 * Get element information for creating a marker from a ref.
+	 *
+	 * Uses agent-browser's `styles` action which properly resolves refs via
+	 * the internal refMap, then supplements with additional element metadata
+	 * using the element's position.
+	 */
+	private async getElementInfoForMarker(
+		ref: string,
+		tab?: TabRef,
+	): Promise<
+		| { success: true; geometry: Geometry; metadata: ElementMetadata }
+		| { success: false; error: ActionResult }
+	> {
+		// Validate element ref
+		const validation = this.validateElementRef(ref)
+		if (!validation.valid) {
+			return { success: false, error: this.createElementRefError(ref) }
+		}
+
+		const target = this.resolveSelector(ref, undefined)
+		if (!target) {
+			return {
+				success: false,
+				error: createError(
+					'Invalid element reference',
+					ErrorCode.SELECTOR_INVALID,
+					false,
+					'Provide a valid element ref from snap (e.g., "e5")',
+				),
+			}
+		}
+
+		// Step 1: Use agent-browser's `styles` action to get bounding box and basic info
+		// This properly resolves refs via browser.getLocator() instead of DOM queries
+		const stylesResponse = await this.withTab(tab, async () =>
+			this.browserManager.send<{
+				elements: Array<{
+					tag: string
+					text: string | null
+					box: { x: number; y: number; width: number; height: number }
+					styles: {
+						fontSize: string
+						fontWeight: string
+						fontFamily: string
+						color: string
+						backgroundColor: string
+						borderRadius: string
+						border: string | null
+						boxShadow: string | null
+						padding: string
+					}
+				}>
+			}>({
+				action: 'styles',
+				selector: target,
+			}),
+		)
+
+		const elements = stylesResponse.data?.elements
+		const styleData = elements?.[0]
+
+		if (!stylesResponse.success || !styleData) {
+			return {
+				success: false,
+				error: createError(
+					`Element ${ref} not found or not visible`,
+					ErrorCode.ELEMENT_NOT_FOUND,
+					true,
+					'Take a fresh snap to get updated element references',
+				),
+			}
+		}
+
+		const box = styleData.box
+
+		// Step 2: Get additional element metadata using the element's position
+		// We use elementFromPoint at the center of the box to get the same element
+		const metadataScript = `
+			(box) => {
+				// Find element at the center of the box returned by styles
+				const centerX = box.x + box.width / 2
+				const centerY = box.y + box.height / 2
+				const el = document.elementFromPoint(centerX, centerY)
+				if (!el) return null
+
+				const computedStyle = window.getComputedStyle(el)
+
+				// Build accessibility info
+				const accessibility = {
+					role: el.getAttribute('role') || undefined,
+					ariaLabel: el.getAttribute('aria-label') || undefined,
+					ariaDescribedBy: el.getAttribute('aria-describedby') || undefined,
+					tabIndex: el.tabIndex !== -1 ? el.tabIndex : undefined,
+					ariaHidden: el.getAttribute('aria-hidden') === 'true',
+					focusable: el.tabIndex >= 0 || ['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName),
+				}
+
+				// Build element identity for re-finding
+				const testId = el.getAttribute('data-testid') || undefined
+				const role = el.getAttribute('role') || el.tagName.toLowerCase()
+				const ariaLabel = el.getAttribute('aria-label')
+				const textContent = el.textContent?.trim().slice(0, 100) || undefined
+
+				// Build roleAndName string
+				let roleAndName = undefined
+				if (ariaLabel) {
+					roleAndName = role + ':' + ariaLabel
+				} else if (textContent && ['button', 'a', 'label'].includes(el.tagName.toLowerCase())) {
+					roleAndName = role + ':' + textContent.slice(0, 50)
+				}
+
+				// Build selector
+				const id = el.id
+				let selectorPath = el.tagName.toLowerCase()
+				if (id) {
+					selectorPath = '#' + id
+				} else {
+					const className = el.className?.split?.(' ')
+						?.filter(c => c && !c.startsWith('_') && !c.match(/^[a-z0-9]{6,}$/i))
+						?.slice(0, 2)?.join('.')
+					if (className) {
+						selectorPath = el.tagName.toLowerCase() + '.' + className
+					}
+				}
+
+				// Clean CSS classes
+				const cssClasses = el.className?.split?.(' ')
+					?.filter(c => c && !c.match(/^[a-z0-9]{8,}$/i))
+					?.join(' ') || undefined
+
+				return {
+					accessibility,
+					identity: {
+						testId,
+						roleAndName,
+						selector: selectorPath,
+						textContent,
+					},
+					cssClasses,
+					selectorPath,
+				}
+			}
+		`
+
+		const metadataResponse = await this.withTab(tab, async () =>
+			this.browserManager.send<{
+				result: {
+					accessibility: ElementMetadata['accessibility']
+					identity: ElementIdentity
+					cssClasses?: string
+					selectorPath: string
+				} | null
+			}>({
+				action: 'evaluate',
+				script: metadataScript,
+				args: [box],
+			}),
+		)
+
+		// Build result even if metadata enhancement fails (we still have box from styles)
+		const metaResult = metadataResponse.data?.result
+
+		// Build element name from styleData
+		const tagName = styleData.tag
+		let elementName = tagName
+		if (metaResult?.identity?.textContent) {
+			const text = metaResult.identity.textContent
+			elementName = `${tagName} '${text.slice(0, 30)}'`
+		} else if (styleData.text) {
+			elementName = `${tagName} '${styleData.text.slice(0, 30)}'`
+		}
+
+		// Build bounding box with all properties
+		const boundingBox: BoundingBox = {
+			x: box.x,
+			y: box.y,
+			width: box.width,
+			height: box.height,
+			top: box.y,
+			right: box.x + box.width,
+			bottom: box.y + box.height,
+			left: box.x,
+		}
+
+		// Convert styles from agent-browser to our format
+		const computedStyles: Record<string, string> = {
+			color: styleData.styles.color,
+			backgroundColor: styleData.styles.backgroundColor,
+			fontSize: styleData.styles.fontSize,
+			fontWeight: styleData.styles.fontWeight,
+		}
+
+		const result = {
+			boundingBox,
+			accessibility: metaResult?.accessibility,
+			identity: metaResult?.identity ?? {
+				selector: metaResult?.selectorPath ?? tagName,
+				textContent: styleData.text ?? undefined,
+			},
+			elementName,
+			cssClasses: metaResult?.cssClasses,
+			computedStyles,
+			selector: metaResult?.selectorPath ?? tagName,
+		}
+		const geometry: Geometry = {
+			type: 'region',
+			x: Math.round(result.boundingBox.x),
+			y: Math.round(result.boundingBox.y),
+			width: Math.round(result.boundingBox.width),
+			height: Math.round(result.boundingBox.height),
+		}
+
+		const metadata: ElementMetadata = {
+			selector: result.selector,
+			elementName: result.elementName,
+			boundingBox: result.boundingBox,
+			cssClasses: result.cssClasses,
+			accessibility: result.accessibility,
+			computedStyles: result.computedStyles,
+			identity: result.identity,
+		}
+
+		return { success: true, geometry, metadata }
+	}
+
+	/**
+	 * Capture screenshot for a marker region.
+	 */
+	private async captureMarkerScreenshot(
+		geometry: Geometry,
+		tab?: TabRef,
+	): Promise<string | undefined> {
+		let clip: { x: number; y: number; width: number; height: number }
+
+		if (geometry.type === 'point') {
+			const size = 100
+			clip = {
+				x: Math.max(0, geometry.x - size / 2),
+				y: Math.max(0, geometry.y - size / 2),
+				width: size,
+				height: size,
+			}
+		} else {
+			clip = {
+				x: geometry.x,
+				y: geometry.y,
+				width: geometry.width,
+				height: geometry.height,
+			}
+		}
+
+		const response = await this.withTab(tab, async () =>
+			this.browserManager.send<{ base64?: string }>({
+				action: 'screenshot',
+				clip,
+				format: 'png',
+			}),
+		)
+
+		if (response.success && response.data?.base64) {
+			return `data:image/png;base64,${response.data.base64}`
+		}
+		return undefined
+	}
+
 	private async listMarkers(
 		format?: 'json' | 'markdown',
+		filters?: { tags?: string[]; url?: string; role?: string },
 	): Promise<ActionResult> {
 		if (!this.markerStore) {
 			return createError(
@@ -2145,7 +2431,7 @@ export class ActionExecutor {
 			)
 		}
 
-		const markers = await this.markerStore.list()
+		const markers = await this.markerStore.list(undefined, filters)
 
 		if (format === 'markdown') {
 			return { success: true, extractedContent: markersToMarkdown(markers) }
@@ -2235,23 +2521,322 @@ export class ActionExecutor {
 			return { success: false, error: 'One or both markers not found' }
 		}
 
-		// Simple comparison
-		const comparison = {
+		// Basic comparison
+		const comparison: Record<string, unknown> = {
 			marker1: {
 				id: marker1.id,
 				geometry: marker1.geometry,
 				note: marker1.note,
+				url: marker1.url,
+				timestamp: marker1.timestamp,
 			},
 			marker2: {
 				id: marker2.id,
 				geometry: marker2.geometry,
 				note: marker2.note,
+				url: marker2.url,
+				timestamp: marker2.timestamp,
 			},
 			sameUrl: marker1.url === marker2.url,
 			sameType: marker1.geometry.type === marker2.geometry.type,
 		}
 
+		// Calculate position delta for regions
+		if (
+			marker1.geometry.type === 'region' &&
+			marker2.geometry.type === 'region'
+		) {
+			comparison.positionDelta = {
+				x: marker2.geometry.x - marker1.geometry.x,
+				y: marker2.geometry.y - marker1.geometry.y,
+			}
+			comparison.sizeDelta = {
+				width: marker2.geometry.width - marker1.geometry.width,
+				height: marker2.geometry.height - marker1.geometry.height,
+			}
+		} else if (
+			marker1.geometry.type === 'point' &&
+			marker2.geometry.type === 'point'
+		) {
+			comparison.positionDelta = {
+				x: marker2.geometry.x - marker1.geometry.x,
+				y: marker2.geometry.y - marker1.geometry.y,
+			}
+		}
+
+		// Compare element identity if available
+		if (marker1.element?.identity && marker2.element?.identity) {
+			const id1 = marker1.element.identity
+			const id2 = marker2.element.identity
+			comparison.sameElement =
+				(id1.testId && id1.testId === id2.testId) ||
+				(id1.roleAndName && id1.roleAndName === id2.roleAndName)
+		}
+
+		// Compare text content if available
+		if (marker1.element?.selectedText || marker2.element?.selectedText) {
+			comparison.textChanged =
+				marker1.element?.selectedText !== marker2.element?.selectedText
+		}
+
+		// Compare computed styles if available
+		if (marker1.element?.computedStyles && marker2.element?.computedStyles) {
+			const styles1 = marker1.element.computedStyles
+			const styles2 = marker2.element.computedStyles
+			const styleChanges: Record<
+				string,
+				{ before: string; after: string }
+			> = {}
+			const allKeys = new Set([
+				...Object.keys(styles1),
+				...Object.keys(styles2),
+			])
+
+			for (const key of allKeys) {
+				if (styles1[key] !== styles2[key]) {
+					styleChanges[key] = {
+						before: styles1[key] ?? '',
+						after: styles2[key] ?? '',
+					}
+				}
+			}
+
+			if (Object.keys(styleChanges).length > 0) {
+				comparison.styleChanges = styleChanges
+			}
+		}
+
 		return { success: true, data: comparison }
+	}
+
+	/**
+	 * Resolve a marker to find the same element on the current page.
+	 */
+	private async resolveMarker(
+		id: string,
+		tab?: TabRef,
+	): Promise<ActionResult> {
+		if (!this.markerStore) {
+			return createError(
+				'No active session',
+				ErrorCode.SESSION_NOT_FOUND,
+				false,
+				'Start a session first by executing any action',
+			)
+		}
+
+		const marker = await this.markerStore.get(id)
+		if (!marker) {
+			return { success: false, error: `Marker not found: ${id}` }
+		}
+
+		// Check if marker has element identity for re-finding
+		if (!marker.element?.identity) {
+			return {
+				success: false,
+				error: 'Marker does not have element identity. Create markers with ref parameter for re-finding support.',
+			}
+		}
+
+		const identity = marker.element.identity
+
+		// Build resolution script that tries multiple strategies
+		const script = `
+			(identity) => {
+				const results = []
+
+				// Strategy 1: data-testid (highest confidence)
+				if (identity.testId) {
+					const el = document.querySelector('[data-testid="' + identity.testId + '"]')
+					if (el) {
+						const rect = el.getBoundingClientRect()
+						results.push({
+							method: 'testId',
+							confidence: 'high',
+							element: el,
+							visible: rect.width > 0 && rect.height > 0,
+							rect,
+						})
+					}
+				}
+
+				// Strategy 2: Role and accessible name
+				if (identity.roleAndName) {
+					const [role, ...nameParts] = identity.roleAndName.split(':')
+					const name = nameParts.join(':')
+
+					// Try explicit role first
+					const candidates = document.querySelectorAll('[role="' + role + '"]')
+					for (const el of candidates) {
+						const ariaLabel = el.getAttribute('aria-label') || el.textContent?.trim().slice(0, 50)
+						if (ariaLabel && ariaLabel === name) {
+							const rect = el.getBoundingClientRect()
+							results.push({
+								method: 'roleAndName',
+								confidence: 'high',
+								element: el,
+								visible: rect.width > 0 && rect.height > 0,
+								rect,
+							})
+						}
+					}
+
+					// Try implicit role based on tag name
+					const implicitRoles = {
+						button: ['button', 'input[type="button"]', 'input[type="submit"]'],
+						link: ['a'],
+						textbox: ['input[type="text"]', 'input', 'textarea'],
+					}
+					if (implicitRoles[role]) {
+						for (const selector of implicitRoles[role]) {
+							const elements = document.querySelectorAll(selector)
+							for (const el of elements) {
+								const ariaLabel = el.getAttribute('aria-label') || el.textContent?.trim().slice(0, 50)
+								if (ariaLabel && ariaLabel === name) {
+									const rect = el.getBoundingClientRect()
+									// Only add if not already found
+									if (!results.find(r => r.element === el)) {
+										results.push({
+											method: 'roleAndName',
+											confidence: 'medium',
+											element: el,
+											visible: rect.width > 0 && rect.height > 0,
+											rect,
+										})
+									}
+								}
+							}
+						}
+					}
+				}
+
+				// Strategy 3: Selector match
+				if (identity.selector) {
+					try {
+						const el = document.querySelector(identity.selector)
+						if (el && !results.find(r => r.element === el)) {
+							const rect = el.getBoundingClientRect()
+							results.push({
+								method: 'selector',
+								confidence: 'low',
+								element: el,
+								visible: rect.width > 0 && rect.height > 0,
+								rect,
+							})
+						}
+					} catch {
+						// Invalid selector, ignore
+					}
+				}
+
+				// Strategy 4: Text content match (fallback)
+				if (identity.textContent && results.length === 0) {
+					const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT)
+					while (walker.nextNode()) {
+						const el = walker.currentNode
+						const text = el.textContent?.trim()
+						if (text === identity.textContent) {
+							const rect = el.getBoundingClientRect()
+							if (rect.width > 0 && rect.height > 0) {
+								results.push({
+									method: 'textContent',
+									confidence: 'low',
+									element: el,
+									visible: true,
+									rect,
+								})
+								break // Only take first match
+							}
+						}
+					}
+				}
+
+				// Find the best result (prefer visible, high confidence)
+				if (results.length === 0) {
+					return { found: false }
+				}
+
+				// Sort by confidence and visibility
+				const confidenceOrder = { high: 0, medium: 1, low: 2 }
+				results.sort((a, b) => {
+					if (a.visible !== b.visible) return b.visible ? 1 : -1
+					return confidenceOrder[a.confidence] - confidenceOrder[b.confidence]
+				})
+
+				const best = results[0]
+
+				// Find the ref index for the element (if it has data-ref)
+				const refAttr = best.element.getAttribute('data-ref')
+				const ref = refAttr ? 'e' + refAttr : null
+
+				return {
+					found: true,
+					ref,
+					confidence: best.confidence,
+					method: best.method,
+					visible: best.visible,
+					boundingBox: {
+						x: best.rect.x,
+						y: best.rect.y,
+						width: best.rect.width,
+						height: best.rect.height,
+					},
+					alternativeMatches: results.length - 1,
+				}
+			}
+		`
+
+		const response = await this.withTab(tab, async () =>
+			this.browserManager.send<{
+				result: {
+					found: boolean
+					ref?: string | null
+					confidence?: 'high' | 'medium' | 'low'
+					method?: string
+					visible?: boolean
+					boundingBox?: { x: number; y: number; width: number; height: number }
+					alternativeMatches?: number
+				}
+			}>({
+				action: 'evaluate',
+				script,
+				args: [identity],
+			}),
+		)
+
+		if (!response.success) {
+			return {
+				success: false,
+				error: response.error ?? 'Failed to resolve marker element',
+			}
+		}
+
+		const result = response.data?.result
+		if (!result?.found) {
+			return {
+				success: true,
+				data: {
+					found: false,
+					markerId: id,
+					identity,
+					message: 'Element not found on current page',
+				},
+			}
+		}
+
+		return {
+			success: true,
+			data: {
+				found: true,
+				markerId: id,
+				ref: result.ref,
+				confidence: result.confidence,
+				method: result.method,
+				visible: result.visible,
+				boundingBox: result.boundingBox,
+				alternativeMatches: result.alternativeMatches,
+			},
+		}
 	}
 
 	// ============================================================================
