@@ -21,6 +21,11 @@
 			"js": ["src/content/index.ts"],
 			"css": ["src/content/styles.css"],
 			"run_at": "document_idle"
+		},
+		{
+			"matches": ["<all_urls>"],
+			"js": ["src/content/agentation.tsx"],
+			"run_at": "document_idle"
 		}
 	],
 	"action": {

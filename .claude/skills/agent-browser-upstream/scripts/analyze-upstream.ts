@@ -11,12 +11,18 @@
  * Output: JSON with categorized commits and file changes
  */
 
-import { $ } from 'bun'
-import { parseArgs } from 'util'
 import { dirname, join } from 'path'
+import { parseArgs } from 'util'
+import { $ } from 'bun'
 
 const FORK_URL = 'git@github.com:outfitter-dev/agent-browser.git'
 const UPSTREAM_URL = 'git@github.com:vercel-labs/agent-browser.git'
+
+// Validate git ref to prevent command injection
+// Valid refs: alphanumeric, /, ., -, _ (no shell metacharacters)
+function isValidGitRef(ref: string): boolean {
+	return /^[a-zA-Z0-9._\/-]+$/.test(ref) && !ref.startsWith('-')
+}
 
 interface Commit {
 	sha: string
@@ -90,9 +96,7 @@ function parseConventionalCommit(message: string): {
 	description: string
 } {
 	// Match: type(scope)!: description or type!: description or type(scope): description
-	const match = message.match(
-		/^(\w+)(?:\(([^)]+)\))?(!)?\s*:\s*(.+?)(?:\n|$)/
-	)
+	const match = message.match(/^(\w+)(?:\(([^)]+)\))?(!)?\s*:\s*(.+?)(?:\n|$)/)
 
 	if (!match) {
 		return {
@@ -136,7 +140,7 @@ function categorizeCommit(commit: Commit): keyof AnalysisResult['commits'] {
 async function getCommits(
 	repo: string,
 	base: string,
-	target: string
+	target: string,
 ): Promise<Commit[]> {
 	// Format: sha|message
 	const result =
@@ -153,8 +157,7 @@ async function getCommits(
 		const message = messageParts.join('|') // Handle | in commit messages
 
 		// Get full commit body for breaking change detection
-		const body =
-			await $`cd ${repo} && git log --format="%b" -1 ${sha}`.text()
+		const body = await $`cd ${repo} && git log --format="%b" -1 ${sha}`.text()
 
 		const parsed = parseConventionalCommit(message)
 
@@ -165,8 +168,7 @@ async function getCommits(
 			type: parsed.type,
 			scope: parsed.scope,
 			breaking:
-				parsed.breaking ||
-				body.toLowerCase().includes('breaking change'),
+				parsed.breaking || body.toLowerCase().includes('breaking change'),
 			body: body.trim() || undefined,
 		})
 	}
@@ -177,7 +179,7 @@ async function getCommits(
 async function getFileChanges(
 	repo: string,
 	base: string,
-	target: string
+	target: string,
 ): Promise<FileChange[]> {
 	// Format: status additions deletions path
 	const result =
@@ -193,8 +195,8 @@ async function getFileChanges(
 		const [additions, deletions, path] = line.split('\t')
 
 		// Handle binary files (show as -)
-		const add = additions === '-' ? 0 : parseInt(additions, 10)
-		const del = deletions === '-' ? 0 : parseInt(deletions, 10)
+		const add = additions === '-' ? 0 : Number.parseInt(additions, 10)
+		const del = deletions === '-' ? 0 : Number.parseInt(deletions, 10)
 
 		// Get status
 		const statusResult =
@@ -296,6 +298,16 @@ Environment:
 	const base = values.base!
 	const target = values.target!
 
+	// Validate refs to prevent command injection
+	if (!isValidGitRef(base)) {
+		console.error(`Invalid base ref: ${base}`)
+		process.exit(1)
+	}
+	if (!isValidGitRef(target)) {
+		console.error(`Invalid target ref: ${target}`)
+		process.exit(1)
+	}
+
 	// Ensure repo exists (clone if needed)
 	await ensureAgentBrowserRepo(repo)
 
@@ -323,7 +335,7 @@ Environment:
 
 	// Identify critical file changes
 	const criticalFiles = fileChanges.filter((f) =>
-		CRITICAL_FILES.some((cf) => f.path.includes(cf))
+		CRITICAL_FILES.some((cf) => f.path.includes(cf)),
 	)
 
 	const result: AnalysisResult = {
@@ -376,9 +388,7 @@ Environment:
 		if (criticalFiles.length > 0) {
 			console.log(`\n### Critical File Changes\n`)
 			for (const f of criticalFiles) {
-				console.log(
-					`- \`${f.path}\` (+${f.additions}/-${f.deletions})`
-				)
+				console.log(`- \`${f.path}\` (+${f.additions}/-${f.deletions})`)
 			}
 		}
 	} else {

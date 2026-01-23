@@ -14,6 +14,9 @@ let pairedMode = false
 // Store viewport per tab
 const tabViewports = new Map<number, { width: number; height: number }>()
 
+// Agentation mode state
+let agentationEnabled = false
+
 interface Viewport {
 	width: number
 	height: number
@@ -313,6 +316,10 @@ chrome.runtime.onMessage.addListener(
 			action?: string
 			target?: string
 			timestamp?: string
+			// Agentation fields
+			agentationId?: string
+			ref?: string
+			count?: number
 		},
 		sender,
 		sendResponse,
@@ -413,6 +420,73 @@ chrome.runtime.onMessage.addListener(
 					)
 				}
 				sendResponse({ success: true })
+				break
+
+			// ================================================================
+			// Agentation Mode
+			// ================================================================
+
+			case 'enableAgentation':
+				agentationEnabled = true
+				// Notify content scripts to mount Agentation
+				notifyContentScripts({ type: 'navigator:enableAgentation' })
+				sendResponse({ success: true, enabled: true })
+				break
+
+			case 'disableAgentation':
+				agentationEnabled = false
+				// Notify content scripts to unmount Agentation
+				notifyContentScripts({ type: 'navigator:disableAgentation' })
+				sendResponse({ success: true, enabled: false })
+				break
+
+			case 'getAgentationStatus':
+				sendResponse({ enabled: agentationEnabled })
+				break
+
+			case 'deleteMarker':
+				if (ws?.readyState === WebSocket.OPEN) {
+					ws.send(
+						JSON.stringify({
+							type: 'deleteMarker',
+							agentationId: message.agentationId,
+							ref: message.ref,
+						}),
+					)
+					sendResponse({ success: true })
+				} else {
+					sendResponse({ success: false, error: 'Not connected' })
+				}
+				break
+
+			case 'updateMarker':
+				if (ws?.readyState === WebSocket.OPEN) {
+					ws.send(
+						JSON.stringify({
+							type: 'updateMarker',
+							agentationId: message.agentationId,
+							ref: message.ref,
+							payload: message.payload,
+						}),
+					)
+					sendResponse({ success: true })
+				} else {
+					sendResponse({ success: false, error: 'Not connected' })
+				}
+				break
+
+			case 'clearMarkers':
+				if (ws?.readyState === WebSocket.OPEN) {
+					ws.send(
+						JSON.stringify({
+							type: 'clearMarkers',
+							count: message.count,
+						}),
+					)
+					sendResponse({ success: true })
+				} else {
+					sendResponse({ success: false, error: 'Not connected' })
+				}
 				break
 		}
 

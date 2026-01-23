@@ -30,12 +30,14 @@ interface Marker {
 interface StatusResponse {
 	connected?: boolean
 	pairedMode?: boolean
+	agentationEnabled?: boolean
 }
 
 interface RuntimeMessage {
 	type?: string
 	payload?: Marker
 	paired?: boolean
+	enabled?: boolean
 }
 
 /**
@@ -66,6 +68,7 @@ function handleRuntimeMessage(
 		setConnected: Dispatch<SetStateAction<boolean>>
 		setPairedMode: Dispatch<SetStateAction<boolean>>
 		setMarkerMode: Dispatch<SetStateAction<boolean>>
+		setAgentationMode: Dispatch<SetStateAction<boolean>>
 		setMarkers: Dispatch<SetStateAction<Marker[]>>
 	},
 ): void {
@@ -86,6 +89,9 @@ function handleRuntimeMessage(
 		case 'markerModeCancelled':
 			handlers.setMarkerMode(false)
 			return
+		case 'agentationChanged':
+			handlers.setAgentationMode(message.enabled ?? false)
+			return
 		default:
 			return
 	}
@@ -98,6 +104,7 @@ export default function App() {
 	const [connected, setConnected] = useState(false)
 	const [pairedMode, setPairedMode] = useState(false)
 	const [markerMode, setMarkerMode] = useState(false)
+	const [agentationMode, setAgentationMode] = useState(false)
 	const [markers, setMarkers] = useState<Marker[]>([])
 	const [serverUrl, setServerUrl] = useState(DEFAULT_SERVER_URL)
 	const [draftUrl, setDraftUrl] = useState(DEFAULT_SERVER_URL)
@@ -123,12 +130,21 @@ export default function App() {
 			},
 		)
 
+		// Get agentation status
+		chrome.runtime.sendMessage(
+			{ type: 'getAgentationStatus' },
+			(response: { enabled?: boolean }) => {
+				setAgentationMode(response?.enabled ?? false)
+			},
+		)
+
 		// Listen for status updates
 		const listener = (message: RuntimeMessage) =>
 			handleRuntimeMessage(message, {
 				setConnected,
 				setPairedMode,
 				setMarkerMode,
+				setAgentationMode,
 				setMarkers,
 			})
 
@@ -162,6 +178,29 @@ export default function App() {
 			chrome.runtime.sendMessage({ type: 'enablePaired' })
 		}
 	}, [pairedMode])
+
+	/**
+	 * Toggle Agentation mode (element-aware annotations)
+	 */
+	const handleAgentationModeToggle = useCallback(() => {
+		const newMode = !agentationMode
+		chrome.runtime.sendMessage({
+			type: newMode ? 'enableAgentation' : 'disableAgentation',
+		})
+		setAgentationMode(newMode)
+
+		// Disable classic marker mode when enabling Agentation
+		if (newMode && markerMode) {
+			chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+				if (tab?.id) {
+					chrome.tabs.sendMessage(tab.id, {
+						type: 'navigator:disableMarkerMode',
+					})
+				}
+			})
+			setMarkerMode(false)
+		}
+	}, [agentationMode, markerMode])
 
 	/**
 	 * Copy markers to clipboard as markdown
@@ -312,20 +351,48 @@ export default function App() {
 
 				{/* Mode toggles */}
 				<div className="space-y-3">
-					{/* Marker Mode */}
+					{/* Agentation Mode (element-aware) */}
 					<div className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3">
 						<div>
 							<div className="font-medium text-slate-900 text-sm">
-								Marker Mode
+								Agentation
 							</div>
 							<div className="text-slate-500 text-xs">
-								Click or drag to annotate elements
+								Element-aware annotations with selectors
+							</div>
+						</div>
+						<button
+							type="button"
+							onClick={handleAgentationModeToggle}
+							className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+								agentationMode ? 'bg-purple-600' : 'bg-slate-200'
+							}`}
+							role="switch"
+							aria-checked={agentationMode}
+						>
+							<span
+								className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+									agentationMode ? 'translate-x-5' : 'translate-x-0'
+								}`}
+							/>
+						</button>
+					</div>
+
+					{/* Classic Marker Mode (geometry-only) */}
+					<div className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3">
+						<div>
+							<div className="font-medium text-slate-900 text-sm">
+								Classic Markers
+							</div>
+							<div className="text-slate-500 text-xs">
+								Geometry-only point/region annotations
 							</div>
 						</div>
 						<button
 							type="button"
 							onClick={handleMarkerModeToggle}
-							className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+							disabled={agentationMode}
+							className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
 								markerMode ? 'bg-blue-600' : 'bg-slate-200'
 							}`}
 							role="switch"

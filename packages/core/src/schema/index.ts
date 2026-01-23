@@ -12,6 +12,8 @@ export {
 	type FillAction,
 	type FindAction,
 	type MarkerAction,
+	type MarkerResolveAction,
+	type MarkersAction,
 	type ModeAction,
 	type NavigateAction,
 	type PressAction,
@@ -24,6 +26,14 @@ export {
 } from './action'
 
 export {
+	type AccessibilityInfo,
+	AccessibilityInfoSchema,
+	type BoundingBox,
+	BoundingBoxSchema,
+	type ElementIdentity,
+	ElementIdentitySchema,
+	type ElementMetadata,
+	ElementMetadataSchema,
 	type Geometry,
 	GeometrySchema,
 	type Marker,

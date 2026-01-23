@@ -207,8 +207,8 @@ profile?: string  // Path to browser profile directory
 
 ### Phase 3: New Features (Can Be Separate PRs)
 
-- [ ] Add `download` action schema and executor (with `wait` flag)
-- [ ] Add launch config extensions (browserArgs, userAgent, proxyBypass, profile)
+- [x] Add `download` action schema and executor (with `wait` flag)
+- [x] Add launch config extensions (browserArgs, userAgent, proxyBypass, profile, cdp)
 - [ ] Update documentation
 
 ### Phase 4: Tracking Issues

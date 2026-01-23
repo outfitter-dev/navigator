@@ -30,9 +30,26 @@ const ServerConfigSchema = z.object({
 	host: z.string().default('localhost'),
 })
 
+const ProxyConfigSchema = z.object({
+	server: z.string(),
+	bypass: z.string().optional(),
+})
+
 const BrowserConfigSchema = z.object({
 	headless: z.boolean().default(true),
 	defaultViewport: ViewportConfigSchema.default({}),
+	browserArgs: z.array(z.string()).optional(),
+	userAgent: z.string().optional(),
+	profile: z.string().optional(),
+	proxy: ProxyConfigSchema.optional(),
+	cdp: z
+		.union([
+			z.number(), // Port number
+			z
+				.string()
+				.url(), // Full WebSocket URL
+		])
+		.optional(),
 })
 
 const SessionConfigSchema = z.object({
@@ -109,6 +126,7 @@ export type MarkersConfig = z.infer<typeof MarkersConfigSchema>
 export type ModesConfig = z.infer<typeof ModesConfigSchema>
 export type ViewportConfig = z.infer<typeof ViewportConfigSchema>
 export type LoggingConfig = z.infer<typeof LoggingConfigSchema>
+export type ProxyConfig = z.infer<typeof ProxyConfigSchema>
 
 // ============================================================================
 // Config Loading

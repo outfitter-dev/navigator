@@ -33,6 +33,7 @@ export {
 	type MarkersConfig,
 	type ModesConfig,
 	type NavigatorConfig,
+	type ProxyConfig,
 	type ServerConfig,
 	type SessionConfig,
 	type ViewportConfig,

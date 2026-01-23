@@ -30,6 +30,16 @@ export interface MarkerGetOptions {
 	includeScreenshot?: boolean | undefined
 }
 
+/** Filter options for listing markers */
+export interface MarkerFilterOptions {
+	/** Filter by tags (markers must have all specified tags) */
+	tags?: string[] | undefined
+	/** Filter by URL (partial match) */
+	url?: string | undefined
+	/** Filter by element role */
+	role?: string | undefined
+}
+
 /** Marker with optional loaded screenshot data */
 export interface MarkerWithScreenshot extends Marker {
 	screenshot?: string
@@ -98,6 +108,9 @@ export class MarkerStore {
 			note: input.note,
 			screenshotPath,
 			viewport: input.viewport,
+			element: input.element,
+			tags: input.tags,
+			sourceRef: input.sourceRef,
 		}
 
 		// Validate
@@ -190,9 +203,13 @@ export class MarkerStore {
 	 * List all markers in the session.
 	 *
 	 * @param options - Options for retrieval
+	 * @param filters - Filter options for narrowing results
 	 * @returns Array of markers sorted by timestamp (newest first)
 	 */
-	async list(options?: MarkerGetOptions): Promise<MarkerWithScreenshot[]> {
+	async list(
+		options?: MarkerGetOptions,
+		filters?: MarkerFilterOptions,
+	): Promise<MarkerWithScreenshot[]> {
 		if (!existsSync(this.markersDir)) return []
 
 		const files = readdirSync(this.markersDir).filter((f) =>
@@ -204,6 +221,29 @@ export class MarkerStore {
 			try {
 				const raw = readFileSync(join(this.markersDir, file), 'utf8')
 				const marker = MarkerSchema.parse(JSON.parse(raw))
+
+				// Apply filters
+				if (filters) {
+					// Filter by tags (must have ALL specified tags)
+					if (filters.tags && filters.tags.length > 0) {
+						const markerTags = marker.tags ?? []
+						const hasAllTags = filters.tags.every((tag) =>
+							markerTags.includes(tag),
+						)
+						if (!hasAllTags) continue
+					}
+
+					// Filter by URL (partial match)
+					if (filters.url && !marker.url.includes(filters.url)) {
+						continue
+					}
+
+					// Filter by element role
+					if (filters.role) {
+						const elementRole = marker.element?.accessibility?.role
+						if (elementRole !== filters.role) continue
+					}
+				}
 
 				// Optionally load screenshot data
 				if (options?.includeScreenshot && marker.screenshotPath) {
@@ -225,20 +265,20 @@ export class MarkerStore {
 			(a, b) =>
 				new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
 		)
-		log.debug`Markers listed ${{ count: sorted.length }}`
+		log.debug`Markers listed ${{ count: sorted.length, filters }}`
 		return sorted
 	}
 
 	/**
-	 * Update a marker's note.
+	 * Update a marker.
 	 *
 	 * @param markerId - Marker UUID
-	 * @param updates - Updates to apply
+	 * @param updates - Updates to apply (note and/or element metadata)
 	 * @returns Updated marker or null if not found
 	 */
 	async update(
 		markerId: string,
-		updates: { note?: string },
+		updates: Partial<Pick<Marker, 'note' | 'element'>>,
 	): Promise<Marker | null> {
 		const marker = await this.get(markerId)
 		if (!marker) return null
@@ -246,6 +286,7 @@ export class MarkerStore {
 		const updated: Marker = {
 			...marker,
 			note: updates.note ?? marker.note,
+			element: updates.element ?? marker.element,
 		}
 
 		MarkerSchema.parse(updated)
@@ -254,6 +295,29 @@ export class MarkerStore {
 
 		log.debug`Marker updated ${{ id: markerId }}`
 		return updated
+	}
+
+	/**
+	 * Clear all markers in the session.
+	 *
+	 * @returns Number of markers deleted
+	 */
+	async clear(): Promise<number> {
+		if (!existsSync(this.markersDir)) return 0
+
+		const files = readdirSync(this.markersDir).filter((f) =>
+			f.endsWith('.json'),
+		)
+		let deleted = 0
+
+		for (const file of files) {
+			const markerId = file.replace('.json', '')
+			const success = await this.delete(markerId)
+			if (success) deleted++
+		}
+
+		log.debug`Markers cleared ${{ count: deleted }}`
+		return deleted
 	}
 
 	/**
