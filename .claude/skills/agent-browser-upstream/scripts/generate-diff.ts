@@ -18,7 +18,7 @@
 
 import { basename, dirname, join } from 'path'
 import { parseArgs } from 'util'
-import { $ } from 'bun'
+import { $, Glob } from 'bun'
 import { mkdir, rm } from 'fs/promises'
 
 const FORK_URL = 'git@github.com:outfitter-dev/agent-browser.git'
@@ -277,44 +277,48 @@ async function findNavigatorImpact(
 ): Promise<NavigatorImpact[]> {
 	const impacts: NavigatorImpact[] = []
 
-	try {
-		// Find files importing from agent-browser
-		const grepResult =
-			await $`grep -r "@outfitter/agent-browser" ${navigatorRoot}/packages/*/src --include="*.ts" -l 2>/dev/null || true`.text()
+	// Use Bun's Glob API to find TypeScript files (shell globs don't expand in Bun's $)
+	const glob = new Glob('packages/*/src/**/*.ts')
 
-		for (const file of grepResult.trim().split('\n').filter(Boolean)) {
-			const content = await Bun.file(file).text()
+	for await (const relativePath of glob.scan({
+		cwd: navigatorRoot,
+		absolute: false,
+	})) {
+		const filePath = join(navigatorRoot, relativePath)
+		const content = await Bun.file(filePath).text()
 
-			// Extract import statements
-			const importMatches = content.matchAll(
-				/import\s+\{([^}]+)\}\s+from\s+['"]@outfitter\/agent-browser['"]/g,
-			)
-			const imports: string[] = []
-			for (const match of importMatches) {
-				imports.push(
-					...match[1]
-						.split(',')
-						.map((s) => s.trim())
-						.filter(Boolean),
-				)
-			}
-
-			// Find usage patterns (simplified)
-			const usages: string[] = []
-			if (content.includes('BrowserManager')) usages.push('BrowserManager')
-			if (content.includes('protocol')) usages.push('protocol')
-			if (content.includes('snapshot')) usages.push('snapshot')
-
-			if (imports.length > 0 || usages.length > 0) {
-				impacts.push({
-					file: file.replace(navigatorRoot + '/', ''),
-					imports,
-					usages,
-				})
-			}
+		// Skip files that don't import from agent-browser
+		if (!content.includes('@outfitter/agent-browser')) {
+			continue
 		}
-	} catch {
-		// Ignore grep errors
+
+		// Extract import statements
+		const importMatches = content.matchAll(
+			/import\s+\{([^}]+)\}\s+from\s+['"]@outfitter\/agent-browser['"]/g,
+		)
+		const imports: string[] = []
+		for (const match of importMatches) {
+			imports.push(
+				...match[1]
+					.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean),
+			)
+		}
+
+		// Find usage patterns (simplified)
+		const usages: string[] = []
+		if (content.includes('BrowserManager')) usages.push('BrowserManager')
+		if (content.includes('protocol')) usages.push('protocol')
+		if (content.includes('snapshot')) usages.push('snapshot')
+
+		if (imports.length > 0 || usages.length > 0) {
+			impacts.push({
+				file: relativePath,
+				imports,
+				usages,
+			})
+		}
 	}
 
 	return impacts

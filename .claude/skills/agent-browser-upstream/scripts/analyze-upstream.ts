@@ -18,6 +18,12 @@ import { $ } from 'bun'
 const FORK_URL = 'git@github.com:outfitter-dev/agent-browser.git'
 const UPSTREAM_URL = 'git@github.com:vercel-labs/agent-browser.git'
 
+// Validate git ref to prevent command injection
+// Valid refs: alphanumeric, /, ., -, _ (no shell metacharacters)
+function isValidGitRef(ref: string): boolean {
+	return /^[a-zA-Z0-9._\/-]+$/.test(ref) && !ref.startsWith('-')
+}
+
 interface Commit {
 	sha: string
 	shortSha: string
@@ -291,6 +297,16 @@ Environment:
 
 	const base = values.base!
 	const target = values.target!
+
+	// Validate refs to prevent command injection
+	if (!isValidGitRef(base)) {
+		console.error(`Invalid base ref: ${base}`)
+		process.exit(1)
+	}
+	if (!isValidGitRef(target)) {
+		console.error(`Invalid target ref: ${target}`)
+		process.exit(1)
+	}
 
 	// Ensure repo exists (clone if needed)
 	await ensureAgentBrowserRepo(repo)
