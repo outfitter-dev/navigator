@@ -14,6 +14,7 @@ import {
 	configureLogging,
 	getLogger,
 } from '@outfitter/navigator-core/logging'
+import { getActionsForSurface } from '@outfitter/navigator-core'
 import { Command } from 'commander'
 import { type ClientOptions, createClient } from './client.js'
 import { registerCleanCommand } from './commands/clean.js'
@@ -53,6 +54,12 @@ function getVersion(): string {
 // Program Setup
 // ============================================================================
 
+function formatActionHelp(): string {
+	const actions = getActionsForSurface('cli').slice().sort()
+	if (actions.length === 0) return ''
+	return `\nActions (CLI surface, from core manifest):\n  ${actions.join(', ')}\n`
+}
+
 const program = new Command()
 	.name('nav')
 	.description('Browser automation for AI agents')
@@ -64,6 +71,7 @@ program
 	.option('-p, --project <path>', 'Project root path')
 	.option('--port <number>', 'Server port (default: 9334)')
 	.option('-d, --debug', 'Enable verbose debug logging')
+	.addHelpText('after', formatActionHelp())
 
 // ============================================================================
 // Client Factory
