@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { ACTION_CATEGORIES } from '../packages/mcp/src/schema.ts'
+import { getActionsForSurface } from '../packages/core/src/capabilities/manifest.ts'
 
 const CLI_COMMANDS_DIR = join(
 	import.meta.dir,
@@ -13,20 +14,6 @@ const CLI_COMMANDS_DIR = join(
 
 const ACTION_REGEX = /action:\s*['"]([A-Za-z0-9]+)['"]/g
 const ACTION_ENTRY_REGEX = /['"]action['"]\s*,\s*['"]([A-Za-z0-9]+)['"]/g
-
-const EXPECTED_CLI_ONLY = new Set(['markerResolve'])
-const EXPECTED_MCP_ONLY = new Set([
-	'evaluate',
-	'focus',
-	'html',
-	'markerRead',
-	'mode',
-	'sessions',
-	'text',
-	'wait',
-	'waitFor',
-	'waitForNavigation',
-])
 
 const strict = process.argv.includes('--strict')
 
@@ -76,49 +63,38 @@ function report(
 
 const cliActions = extractCliActions()
 const mcpActions = extractMcpActions()
+const expectedCliActions = new Set(getActionsForSurface('cli'))
+const expectedMcpActions = new Set(getActionsForSurface('mcp'))
 
-const cliOnly = diff(cliActions, mcpActions)
-const mcpOnly = diff(mcpActions, cliActions)
-
-const unexpectedCliOnly = cliOnly.filter((action) => !EXPECTED_CLI_ONLY.has(action))
-const unexpectedMcpOnly = mcpOnly.filter((action) => !EXPECTED_MCP_ONLY.has(action))
-
-const missingExpectedCliOnly = [...EXPECTED_CLI_ONLY].filter(
-	(action) => !cliOnly.includes(action),
-)
-const missingExpectedMcpOnly = [...EXPECTED_MCP_ONLY].filter(
-	(action) => !mcpOnly.includes(action),
-)
+const cliUnexpected = diff(cliActions, expectedCliActions)
+const cliMissing = diff(expectedCliActions, cliActions)
+const mcpUnexpected = diff(mcpActions, expectedMcpActions)
+const mcpMissing = diff(expectedMcpActions, mcpActions)
 
 console.log('Navigator capabilities check')
-console.log(`  CLI actions: ${cliActions.size}`)
-console.log(`  MCP actions: ${mcpActions.size}`)
+console.log(`  CLI actions (actual): ${cliActions.size}`)
+console.log(`  MCP actions (actual): ${mcpActions.size}`)
+console.log(`  CLI actions (expected): ${expectedCliActions.size}`)
+console.log(`  MCP actions (expected): ${expectedMcpActions.size}`)
 
-if (cliOnly.length > 0 || mcpOnly.length > 0) {
-	report('CLI-only actions', cliOnly, 'info')
-	report('MCP-only actions', mcpOnly, 'info')
-}
-
-if (unexpectedCliOnly.length > 0 || unexpectedMcpOnly.length > 0) {
-	report('Unexpected CLI-only actions', unexpectedCliOnly)
-	report('Unexpected MCP-only actions', unexpectedMcpOnly)
+if (cliUnexpected.length > 0 || mcpUnexpected.length > 0) {
+	report('Unexpected CLI actions', cliUnexpected)
+	report('Unexpected MCP actions', mcpUnexpected)
 } else {
 	console.log('  No unexpected capability drift detected.')
 }
 
-if (missingExpectedCliOnly.length > 0 || missingExpectedMcpOnly.length > 0) {
-	report(
-		'Baseline cleanup (expected CLI-only missing)',
-		missingExpectedCliOnly,
-		'info',
-	)
-	report(
-		'Baseline cleanup (expected MCP-only missing)',
-		missingExpectedMcpOnly,
-		'info',
-	)
+if (cliMissing.length > 0 || mcpMissing.length > 0) {
+	report('Missing CLI actions', cliMissing, 'info')
+	report('Missing MCP actions', mcpMissing, 'info')
 }
 
-if (strict && (unexpectedCliOnly.length > 0 || unexpectedMcpOnly.length > 0)) {
+if (
+	strict &&
+	(cliUnexpected.length > 0 ||
+		mcpUnexpected.length > 0 ||
+		cliMissing.length > 0 ||
+		mcpMissing.length > 0)
+) {
 	process.exitCode = 1
 }
