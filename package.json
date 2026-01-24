@@ -12,6 +12,7 @@
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
 		"test": "bun test",
+		"capabilities:check": "bun run scripts/capabilities-check.ts",
 		"test:cli": "./.claude/scripts/run-tests.sh --all",
 		"test:mcp": "./.claude/scripts/run-mcp-tests.sh --all",
 		"clean": "rm -rf packages/*/dist .scratch/testing",
