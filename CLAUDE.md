@@ -89,6 +89,10 @@ Actions are validated via Zod discriminated union in `packages/core/src/schema/i
 - Display: viewport, colorScheme, mode
 - Routes: run, replay
 
+Canonical action exposure (CLI vs MCP) is defined in
+`packages/core/src/capabilities/manifest.ts`; keep docs and tool descriptions
+aligned with that manifest.
+
 ### Data Flow
 
 ```

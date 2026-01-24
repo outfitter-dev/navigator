@@ -5,6 +5,7 @@
  * Optimized for LLM comprehension within context budget (~500 tokens).
  */
 
+import { getActionsForSurface } from '@outfitter/navigator-core'
 import { ACTION_CATEGORIES } from './schema'
 
 /**
@@ -43,25 +44,60 @@ Selectors can be used instead of refs for most element actions: \`selector: ".bt
 }
 
 function formatActionCategories(): string {
-	const descriptions: Record<string, string> = {
-		navigation: 'navigate(url), back, forward, reload',
-		tabs: 'tab(ref), tabs, newTab(url?), closeTab(ref)',
-		interaction:
-			'click, type(text), select(value), hover, scroll, find(text|role|label), check, uncheck, upload(files), dialog(handler), press(key), fill(value), focus',
-		wait: 'waitFor(ref, state?), waitForNavigation, wait(ms)',
-		capture:
-			'snap(interactive?), screenshot(selector?, fullPage?), html(selector?), text(ref?)',
-		markers:
-			'marker(selector), markers, markerRead(id), markerGet(id), markerCompare(id1, id2), markerDelete(id)',
-		display: 'viewport(preset|width+height), colorScheme(scheme), mode(target)',
-		session: 'session, sessions(limit?), steps(sessionId?, limit?)',
+	const actionDocs: Record<string, string> = {
+		navigate: 'navigate(url)',
+		back: 'back',
+		forward: 'forward',
+		reload: 'reload',
+		tab: 'tab(ref)',
+		tabs: 'tabs',
+		newTab: 'newTab(url?)',
+		closeTab: 'closeTab(ref)',
+		click: 'click',
+		type: 'type(text)',
+		select: 'select(value)',
+		hover: 'hover',
+		scroll: 'scroll',
+		find: 'find(text|role|label)',
+		check: 'check',
+		uncheck: 'uncheck',
+		upload: 'upload(files)',
+		dialog: 'dialog(handler)',
+		press: 'press(key)',
+		fill: 'fill(value)',
+		focus: 'focus',
+		waitFor: 'waitFor(ref, state?)',
+		waitForNavigation: 'waitForNavigation',
+		wait: 'wait(ms)',
+		snap: 'snap(interactive?)',
+		screenshot: 'screenshot(selector?, fullPage?)',
+		html: 'html(selector?)',
+		text: 'text(ref?)',
+		marker: 'marker(selector|ref)',
+		markers: 'markers',
+		markerRead: 'markerRead(id)',
+		markerGet: 'markerGet(id)',
+		markerCompare: 'markerCompare(id1, id2)',
+		markerDelete: 'markerDelete(id)',
+		viewport: 'viewport(preset|width+height)',
+		colorScheme: 'colorScheme(scheme)',
+		mode: 'mode(target)',
+		session: 'session',
+		sessions: 'sessions(limit?)',
+		steps: 'steps(sessionId?, limit?)',
 		evaluate: 'evaluate(script, args?)',
 	}
 
+	const mcpActions = new Set(getActionsForSurface('mcp'))
+
 	return Object.entries(ACTION_CATEGORIES)
-		.map(([category]) => {
-			const desc = descriptions[category]
-			return desc ? `- **${category}**: ${desc}` : null
+		.map(([category, actions]) => {
+			const filtered = actions.filter((action) => mcpActions.has(action))
+			if (filtered.length === 0) return null
+			const desc = filtered
+				.map((action) => actionDocs[action] ?? action)
+				.join(', ')
+			return `- **${category}**: ${desc}`
 		})
 		.filter(Boolean)
 		.join('\n')

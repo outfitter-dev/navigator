@@ -87,6 +87,10 @@ Then use the `navigator` tool with action routing:
 
 See [`.agents/plans/v1/PLAN.md`](.agents/plans/v1/PLAN.md) for architecture and implementation details.
 
+**Capabilities source of truth:** Action exposure for CLI/MCP is defined in
+`packages/core/src/capabilities/manifest.ts`, and the CLI help + MCP tool
+description are generated from it.
+
 ## License
 
 MIT
