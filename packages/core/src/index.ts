@@ -74,3 +74,6 @@ export {
 
 // Viewport utilities
 export * from './viewport'
+
+// Capability manifest
+export * from './capabilities'
