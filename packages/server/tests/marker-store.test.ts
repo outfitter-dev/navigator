@@ -5,11 +5,11 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { randomUUID } from 'node:crypto'
 import { mkdirSync, rmSync } from 'node:fs'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { randomUUID } from 'node:crypto'
 import type { Geometry, MarkerCreateInput } from '@outfitter/navigator-core'
 import { MarkerStore } from '../src/markers/store'
 
@@ -168,7 +168,9 @@ describe('MarkerStore', () => {
 		})
 
 		test('filters by multiple tags (AND logic)', async () => {
-			const markers = await store.list(undefined, { tags: ['responsive', 'v1'] })
+			const markers = await store.list(undefined, {
+				tags: ['responsive', 'v1'],
+			})
 			expect(markers).toHaveLength(1)
 			expect(markers[0].url).toBe('https://example.com/page1')
 		})

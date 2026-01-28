@@ -9,12 +9,12 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { getActionsForSurface } from '@outfitter/navigator-core'
 import {
 	CATEGORIES,
 	configureLogging,
 	getLogger,
 } from '@outfitter/navigator-core/logging'
-import { getActionsForSurface } from '@outfitter/navigator-core'
 import { Command } from 'commander'
 import { type ClientOptions, createClient } from './client.js'
 import { registerCleanCommand } from './commands/clean.js'
