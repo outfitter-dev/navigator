@@ -11,3 +11,9 @@ export {
 	interpolateString,
 	validateParams,
 } from './params'
+
+export {
+	type ActionExecuteFn,
+	type SequenceExecuteOptions,
+	SequenceExecutor,
+} from './executor'
