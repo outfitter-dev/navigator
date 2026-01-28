@@ -77,3 +77,14 @@ export {
 	type StepSource,
 	StepSourceSchema,
 } from './session'
+
+export {
+	MAX_SEQUENCE_DEPTH,
+	type SequenceOptions,
+	SequenceOptionsSchema,
+	type SequenceResult,
+	SequenceResultSchema,
+	type SequenceStepResult,
+	SequenceStepResultSchema,
+	VARIABLE_PATTERN,
+} from './sequence'
