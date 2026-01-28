@@ -32,6 +32,7 @@ import type { BrowserManager } from '../browser/manager'
 import { MarkerStore, markersToMarkdown } from '../markers'
 import type { PairedManager } from '../paired/manager'
 import type { SessionManager } from '../session/manager'
+import { SequenceExecutor } from '../sequences'
 import { StepLogger } from '../session/step-logger'
 import { type WatchEvent, watchBroadcaster } from '../watch'
 
@@ -90,13 +91,19 @@ export class ActionExecutor {
 	private currentProjectRoot: string | null = null
 	private hasSnapshot = false
 	private lastInteractiveCount = 0
+	private sequenceExecutor: SequenceExecutor
 
 	constructor(
 		private readonly browserManager: BrowserManager,
 		private readonly pairedManager: PairedManager,
 		private readonly sessionManager: SessionManager,
 		_config: NavigatorConfig,
-	) {}
+	) {
+		// Initialize sequence executor with bound execute method
+		this.sequenceExecutor = new SequenceExecutor((action, projectRoot) =>
+			this.execute(action, projectRoot),
+		)
+	}
 
 	// ============================================================================
 	// Locator Extraction
@@ -547,6 +554,13 @@ export class ActionExecutor {
 				return this.listSessions(action.limit)
 			case 'steps':
 				return this.getSteps(action.sessionId, action.limit)
+
+			// Sequence
+			case 'sequence':
+				return this.executeSequence(action.steps, action.params, {
+					stopOnError: action.stopOnError,
+					name: action.name,
+				})
 
 			default:
 				return {
@@ -3293,5 +3307,34 @@ export class ActionExecutor {
 		}
 
 		return undefined
+	}
+
+	// ============================================================================
+	// Sequence Execution
+	// ============================================================================
+
+	/**
+	 * Execute a sequence of actions.
+	 */
+	private async executeSequence(
+		steps: Action[],
+		params?: Record<string, unknown>,
+		options?: {
+			stopOnError?: boolean | undefined
+			name?: string | undefined
+		},
+	): Promise<ActionResult> {
+		const result = await this.sequenceExecutor.execute(steps, {
+			params,
+			stopOnError: options?.stopOnError,
+			name: options?.name,
+			projectRoot: this.currentProjectRoot ?? undefined,
+		})
+
+		return {
+			success: result.success,
+			error: result.error,
+			data: result,
+		}
 	}
 }

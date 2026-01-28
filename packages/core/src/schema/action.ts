@@ -377,6 +377,31 @@ const stepsAction = z.object({
 })
 
 // ============================================================================
+// Sequence Action
+// ============================================================================
+
+/**
+ * Sequence action for batch execution of multiple typed actions.
+ *
+ * Enables Ami-style efficiency (fewer round trips) while maintaining
+ * Navigator's safety guarantees (Zod validation, step logging).
+ *
+ * Note: Uses z.any() for steps array due to circular reference constraints
+ * with discriminated unions. Runtime validation happens in SequenceExecutor.
+ */
+const sequenceAction = z.object({
+	action: z.literal('sequence'),
+	/** Array of actions to execute in sequence */
+	steps: z.array(z.any()).min(1),
+	/** Parameters for {{varName}} interpolation */
+	params: z.record(z.unknown()).optional(),
+	/** Stop execution on first error (default: true) */
+	stopOnError: z.boolean().optional(),
+	/** Optional name for logging */
+	name: z.string().optional(),
+})
+
+// ============================================================================
 // Discriminated Union
 // ============================================================================
 
@@ -433,6 +458,8 @@ const baseActionSchema = z.discriminatedUnion('action', [
 	sessionAction,
 	sessionsAction,
 	stepsAction,
+	// Sequence
+	sequenceAction,
 ])
 
 // Add cross-field validation for actions that require ref or selector
@@ -476,6 +503,7 @@ export type UploadAction = z.infer<typeof uploadAction>
 export type DownloadAction = z.infer<typeof downloadAction>
 export type DialogAction = z.infer<typeof dialogAction>
 export type ScreenshotAction = z.infer<typeof screenshotAction>
+export type SequenceAction = z.infer<typeof sequenceAction>
 
 // Browser mode type (uses 'paired' instead of 'guided')
 export type BrowserMode = 'headless' | 'windowed' | 'paired'

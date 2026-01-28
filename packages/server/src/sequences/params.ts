@@ -22,7 +22,10 @@ export function extractVariables(str: string): string[] {
 	VARIABLE_PATTERN.lastIndex = 0
 	let match = VARIABLE_PATTERN.exec(str)
 	while (match !== null) {
-		vars.push(match[1])
+		const varName = match[1]
+		if (varName !== undefined) {
+			vars.push(varName)
+		}
 		match = VARIABLE_PATTERN.exec(str)
 	}
 	return vars
