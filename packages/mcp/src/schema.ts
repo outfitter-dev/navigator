@@ -406,6 +406,44 @@ const evaluateAction = z.object({
 })
 
 // ============================================================================
+// Sequence Action
+// ============================================================================
+
+/**
+ * Sequence action for batch execution of multiple typed actions.
+ *
+ * Enables efficient multi-step workflows in a single MCP call while
+ * maintaining validation, logging, and error handling for each step.
+ *
+ * Example:
+ * {
+ *   action: 'sequence',
+ *   steps: [
+ *     { action: 'navigate', url: 'https://example.com' },
+ *     { action: 'click', selector: 'button' },
+ *     { action: 'snap' }
+ *   ],
+ *   params: { email: 'user@example.com' }
+ * }
+ */
+const sequenceAction = z.object({
+	action: z.literal('sequence'),
+	steps: z
+		.array(z.any())
+		.min(1)
+		.describe('Array of actions to execute in sequence'),
+	params: z
+		.record(z.unknown())
+		.optional()
+		.describe('Parameters for {{varName}} interpolation'),
+	stopOnError: z
+		.boolean()
+		.default(true)
+		.describe('Stop execution on first error'),
+	name: z.string().optional().describe('Optional name for logging'),
+})
+
+// ============================================================================
 // Combined Action Schema (Single MCP Tool Pattern)
 // ============================================================================
 
@@ -461,6 +499,8 @@ export const navigatorActionSchema = z
 		stepsAction,
 		// Evaluate
 		evaluateAction,
+		// Sequence
+		sequenceAction,
 	])
 	.superRefine((value, ctx) => {
 		const needsTarget = new Set([
@@ -532,6 +572,7 @@ export const ACTION_CATEGORIES = {
 	display: ['viewport', 'colorScheme', 'mode'] as const,
 	session: ['session', 'sessions', 'steps'] as const,
 	evaluate: ['evaluate'] as const,
+	sequence: ['sequence'] as const,
 } as const
 
 export type ActionCategory = keyof typeof ACTION_CATEGORIES
