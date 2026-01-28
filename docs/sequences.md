@@ -278,6 +278,6 @@ Optional clicks (cookie banner, popups) may fail but the snap still executes.
 
 ## Related
 
-- [Element References](./element-refs.md) - How `e42` refs work
-- [Sessions](./sessions.md) - Session continuity and step logging
-- [Actions](./actions.md) - Full action reference
+- **Element References** - `e42` refs are documented in `CLAUDE.md` under "Element Reference System"
+- **Action Categories** - Full action list in `CLAUDE.md` under "Action Categories (MCP)"
+- **Architecture** - See `docs/architecture/DESIGN.md` for design philosophy

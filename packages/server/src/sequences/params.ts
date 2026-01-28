@@ -44,8 +44,9 @@ export function interpolateString(
 	params: Record<string, unknown>,
 ): string {
 	// String.replace with regex is safe - doesn't use lastIndex
+	// Use Object.hasOwn to avoid prototype pollution (e.g., {{__proto__}})
 	return str.replace(VARIABLE_REGEX_SOURCE, (match, varName: string) => {
-		if (varName in params) {
+		if (Object.hasOwn(params, varName)) {
 			const value = params[varName]
 			return typeof value === 'string' ? value : String(value)
 		}
@@ -134,7 +135,8 @@ function collectMissingVariables(
 ): void {
 	if (typeof value === 'string') {
 		for (const varName of extractVariables(value)) {
-			if (!(varName in params)) {
+			// Use Object.hasOwn to avoid prototype pollution (e.g., {{constructor}})
+			if (!Object.hasOwn(params, varName)) {
 				missing.push(varName)
 			}
 		}
