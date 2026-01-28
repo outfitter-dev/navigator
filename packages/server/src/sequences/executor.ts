@@ -5,11 +5,7 @@
  * per-step logging, and configurable error handling.
  */
 
-import type {
-	Action,
-	ActionResult,
-	LocatorStrategy,
-} from '@outfitter/navigator-core'
+import type { Action, ActionResult } from '@outfitter/navigator-core'
 import { CATEGORIES, getLogger } from '@outfitter/navigator-core/logging'
 import {
 	MAX_SEQUENCE_DEPTH,
@@ -35,18 +31,21 @@ export type ActionExecuteFn = (
 
 /**
  * Options for sequence execution.
+ *
+ * Note: Properties use `| undefined` to support exactOptionalPropertyTypes.
+ * This allows callers to pass through values that may be undefined.
  */
 export interface SequenceExecuteOptions {
 	/** Stop execution on first error (default: true) */
-	stopOnError?: boolean
+	stopOnError?: boolean | undefined
 	/** Optional name for logging */
-	name?: string
+	name?: string | undefined
 	/** Parameters for variable interpolation */
-	params?: Record<string, unknown>
+	params?: Record<string, unknown> | undefined
 	/** Project root for action execution */
-	projectRoot?: string
+	projectRoot?: string | undefined
 	/** Current nesting depth (for recursion guard) */
-	depth?: number
+	depth?: number | undefined
 }
 
 // ============================================================================
@@ -95,6 +94,10 @@ export class SequenceExecutor {
 
 		for (let i = 0; i < steps.length; i++) {
 			const step = steps[i]
+			if (!step) {
+				// Should never happen with valid array, but satisfies TypeScript
+				continue
+			}
 			const interpolatedStep = params
 				? (interpolateParams(step, params) as Action)
 				: step
@@ -124,8 +127,8 @@ export class SequenceExecutor {
 		index: number,
 		context: {
 			seqName: string
-			params?: Record<string, unknown>
-			projectRoot?: string
+			params?: Record<string, unknown> | undefined
+			projectRoot?: string | undefined
 			depth: number
 			stopOnError: boolean
 		},
@@ -172,8 +175,8 @@ export class SequenceExecutor {
 		index: number,
 		context: {
 			seqName: string
-			params?: Record<string, unknown>
-			projectRoot?: string
+			params?: Record<string, unknown> | undefined
+			projectRoot?: string | undefined
 			depth: number
 			stopOnError: boolean
 		},

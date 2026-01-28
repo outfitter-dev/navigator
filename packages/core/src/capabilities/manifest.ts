@@ -60,6 +60,8 @@ export const ACTION_CAPABILITIES = {
 	session: { surfaces: ['cli', 'mcp'] },
 	sessions: { surfaces: ['mcp'] },
 	steps: { surfaces: ['cli', 'mcp'] },
+	// Sequence
+	sequence: { surfaces: ['cli', 'mcp'] },
 } as const satisfies Record<string, ActionCapability>
 
 export function getActionsForSurface(surface: CapabilitySurface): string[] {

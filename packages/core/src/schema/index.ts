@@ -18,6 +18,7 @@ export {
 	type NavigateAction,
 	type PressAction,
 	type ScreenshotAction,
+	type SequenceAction,
 	type SnapAction,
 	type TabRef,
 	type TypeAction,
