@@ -198,3 +198,28 @@ describe('validateParams', () => {
 		expect(validateParams(data, {})).toEqual(['deep'])
 	})
 })
+
+describe('prototype pollution protection', () => {
+	test('does not interpolate prototype properties like __proto__', () => {
+		const result = interpolateString('{{__proto__}}', {})
+		expect(result).toBe('{{__proto__}}') // Left as-is, not Object.prototype
+	})
+
+	test('does not interpolate constructor', () => {
+		const result = interpolateString('{{constructor}}', {})
+		expect(result).toBe('{{constructor}}')
+	})
+
+	test('reports __proto__ as missing even though it exists on prototype', () => {
+		const missing = validateParams({ x: '{{__proto__}}' }, {})
+		expect(missing).toEqual(['__proto__'])
+	})
+
+	test('only interpolates own properties', () => {
+		const params = Object.create({ inherited: 'bad' })
+		params.own = 'good'
+
+		const result = interpolateString('{{own}} {{inherited}}', params)
+		expect(result).toBe('good {{inherited}}')
+	})
+})

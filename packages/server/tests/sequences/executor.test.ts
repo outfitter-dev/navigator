@@ -308,5 +308,42 @@ describe('SequenceExecutor', () => {
 			expect(result.stoppedAt).toBe(0)
 			expect(calls).toHaveLength(1) // Second action not executed
 		})
+
+		test('fails fast on missing required parameters', async () => {
+			const { execute, calls } = createMockExecutor([{ success: true }])
+			const executor = new SequenceExecutor(execute)
+
+			const steps: Action[] = [
+				{ action: 'fill', selector: '#email', value: '{{email}}' } as Action,
+				{ action: 'fill', selector: '#name', value: '{{name}}' } as Action,
+			]
+
+			const result = await executor.execute(steps, {
+				params: { email: 'test@example.com' }, // Missing 'name'
+			})
+
+			expect(result.success).toBe(false)
+			expect(result.completed).toBe(0)
+			expect(result.error).toContain('Missing required parameters')
+			expect(result.error).toContain('name')
+			expect(calls).toHaveLength(0) // No actions should have executed
+		})
+
+		test('rejects sequences exceeding max step count', async () => {
+			const { execute, calls } = createMockExecutor([])
+			const executor = new SequenceExecutor(execute)
+
+			// Create a sequence with 101 steps (over the limit of 100)
+			const steps: Action[] = Array.from({ length: 101 }, (_, i) => ({
+				action: 'snap',
+			})) as Action[]
+
+			const result = await executor.execute(steps)
+
+			expect(result.success).toBe(false)
+			expect(result.completed).toBe(0)
+			expect(result.error).toContain('maximum step count')
+			expect(calls).toHaveLength(0)
+		})
 	})
 })

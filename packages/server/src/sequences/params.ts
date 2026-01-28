@@ -4,31 +4,34 @@
  * Handles {{varName}} parameter substitution in action objects.
  */
 
-import { VARIABLE_PATTERN } from '@outfitter/navigator-core/schema'
+/**
+ * Variable pattern: {{varName}}
+ *
+ * Note: We define a fresh regex here rather than importing VARIABLE_PATTERN
+ * from the schema. The schema exports a global RegExp with /g flag, which
+ * has mutable lastIndex state that can cause race conditions in concurrent
+ * async operations. Using matchAll() or creating fresh instances avoids this.
+ */
+const VARIABLE_REGEX_SOURCE = /\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}/g
 
 /**
  * Check if a string contains variable placeholders.
  */
 export function hasVariables(str: string): boolean {
-	VARIABLE_PATTERN.lastIndex = 0 // Reset regex state
-	return VARIABLE_PATTERN.test(str)
+	// Create fresh regex to avoid global state issues
+	return new RegExp(VARIABLE_REGEX_SOURCE.source).test(str)
 }
 
 /**
  * Extract variable names from a string.
+ * Uses matchAll() to avoid global regex state issues.
  */
 export function extractVariables(str: string): string[] {
-	const vars: string[] = []
-	VARIABLE_PATTERN.lastIndex = 0
-	let match = VARIABLE_PATTERN.exec(str)
-	while (match !== null) {
-		const varName = match[1]
-		if (varName !== undefined) {
-			vars.push(varName)
-		}
-		match = VARIABLE_PATTERN.exec(str)
-	}
-	return vars
+	// matchAll returns an iterator - safe for concurrent use
+	const matches = str.matchAll(new RegExp(VARIABLE_REGEX_SOURCE.source, 'g'))
+	return Array.from(matches, (m) => m[1]).filter(
+		(v): v is string => v !== undefined,
+	)
 }
 
 /**
@@ -40,9 +43,10 @@ export function interpolateString(
 	str: string,
 	params: Record<string, unknown>,
 ): string {
-	VARIABLE_PATTERN.lastIndex = 0
-	return str.replace(VARIABLE_PATTERN, (match, varName: string) => {
-		if (varName in params) {
+	// String.replace with regex is safe - doesn't use lastIndex
+	// Use Object.hasOwn to avoid prototype pollution (e.g., {{__proto__}})
+	return str.replace(VARIABLE_REGEX_SOURCE, (match, varName: string) => {
+		if (Object.hasOwn(params, varName)) {
 			const value = params[varName]
 			return typeof value === 'string' ? value : String(value)
 		}
@@ -120,6 +124,9 @@ export function validateParams(
 
 /**
  * Internal recursive variable collection.
+ *
+ * Note: Skips nested sequences (action: 'sequence') because they have their
+ * own params and validate themselves when they execute.
  */
 function collectMissingVariables(
 	value: unknown,
@@ -128,7 +135,8 @@ function collectMissingVariables(
 ): void {
 	if (typeof value === 'string') {
 		for (const varName of extractVariables(value)) {
-			if (!(varName in params)) {
+			// Use Object.hasOwn to avoid prototype pollution (e.g., {{constructor}})
+			if (!Object.hasOwn(params, varName)) {
 				missing.push(varName)
 			}
 		}
@@ -143,7 +151,14 @@ function collectMissingVariables(
 	}
 
 	if (value !== null && typeof value === 'object') {
-		for (const val of Object.values(value)) {
+		const obj = value as Record<string, unknown>
+
+		// Skip nested sequences - they validate themselves with merged params
+		if (obj.action === 'sequence') {
+			return
+		}
+
+		for (const val of Object.values(obj)) {
 			collectMissingVariables(val, params, missing)
 		}
 	}

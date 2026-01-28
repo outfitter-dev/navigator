@@ -87,6 +87,7 @@ Actions are validated via Zod discriminated union in `packages/core/src/schema/i
 - Capture: screenshot, snap, html, text
 - Markers: marker, markers, markerGet, markerRead, markerCompare, etc.
 - Display: viewport, colorScheme, mode
+- Sequence: sequence (batch execution, see docs/sequences.md)
 - Routes: run, replay
 
 Canonical action exposure (CLI vs MCP) is defined in

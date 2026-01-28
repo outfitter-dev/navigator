@@ -9,10 +9,11 @@ import type { Action, ActionResult } from '@outfitter/navigator-core'
 import { CATEGORIES, getLogger } from '@outfitter/navigator-core/logging'
 import {
 	MAX_SEQUENCE_DEPTH,
+	MAX_SEQUENCE_STEPS,
 	type SequenceResult,
 	type SequenceStepResult,
 } from '@outfitter/navigator-core/schema'
-import { interpolateParams } from './params'
+import { interpolateParams, validateParams } from './params'
 
 const log = getLogger(CATEGORIES.ACTIONS)
 
@@ -82,9 +83,34 @@ export class SequenceExecutor {
 			return this.maxDepthError(steps.length)
 		}
 
+		// Step count guard (DoS protection)
+		if (steps.length > MAX_SEQUENCE_STEPS) {
+			return {
+				success: false,
+				completed: 0,
+				total: steps.length,
+				steps: [],
+				error: `Sequence exceeds maximum step count (${MAX_SEQUENCE_STEPS})`,
+			}
+		}
+
 		// Empty sequence is a no-op
 		if (steps.length === 0) {
 			return { success: true, completed: 0, total: 0, steps: [] }
+		}
+
+		// Validate all required variables are provided upfront (fail-fast)
+		if (params) {
+			const missing = validateParams(steps, params)
+			if (missing.length > 0) {
+				return {
+					success: false,
+					completed: 0,
+					total: steps.length,
+					steps: [],
+					error: `Missing required parameters: ${missing.join(', ')}`,
+				}
+			}
 		}
 
 		const seqName = name ?? 'sequence'
