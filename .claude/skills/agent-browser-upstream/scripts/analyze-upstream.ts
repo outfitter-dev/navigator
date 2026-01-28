@@ -11,8 +11,8 @@
  * Output: JSON with categorized commits and file changes
  */
 
-import { dirname, join } from 'path'
-import { parseArgs } from 'util'
+import { dirname, join } from 'node:path'
+import { parseArgs } from 'node:util'
 import { $ } from 'bun'
 
 const FORK_URL = 'git@github.com:outfitter-dev/agent-browser.git'
@@ -255,6 +255,7 @@ async function ensureAgentBrowserRepo(repoPath: string): Promise<void> {
 	console.error('Done.\n')
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: CLI entry point with necessary branching
 async function main() {
 	const { values } = parseArgs({
 		args: Bun.argv.slice(2),
@@ -295,8 +296,8 @@ Environment:
 		repo = join(navigatorRoot, '.agent-browser', 'repo')
 	}
 
-	const base = values.base!
-	const target = values.target!
+	const base = values.base ?? 'origin/main'
+	const target = values.target ?? 'upstream/main'
 
 	// Validate refs to prevent command injection
 	if (!isValidGitRef(base)) {
@@ -362,8 +363,8 @@ Environment:
 
 	if (values.format === 'summary') {
 		console.log(`\n## Upstream Analysis: ${base} → ${target}\n`)
-		console.log(`| Category | Count |`)
-		console.log(`|----------|-------|`)
+		console.log('| Category | Count |')
+		console.log('|----------|-------|')
 		console.log(`| Total | ${result.summary.totalCommits} |`)
 		console.log(`| Breaking | ${result.summary.breaking} |`)
 		console.log(`| Additive | ${result.summary.additive} |`)
@@ -372,21 +373,21 @@ Environment:
 		console.log(`| Other | ${result.summary.other} |`)
 
 		if (categorized.breaking.length > 0) {
-			console.log(`\n### Breaking Changes\n`)
+			console.log('\n### Breaking Changes\n')
 			for (const c of categorized.breaking) {
 				console.log(`- \`${c.shortSha}\` ${c.message}`)
 			}
 		}
 
 		if (categorized.additive.length > 0) {
-			console.log(`\n### New Features\n`)
+			console.log('\n### New Features\n')
 			for (const c of categorized.additive) {
 				console.log(`- \`${c.shortSha}\` ${c.message}`)
 			}
 		}
 
 		if (criticalFiles.length > 0) {
-			console.log(`\n### Critical File Changes\n`)
+			console.log('\n### Critical File Changes\n')
 			for (const f of criticalFiles) {
 				console.log(`- \`${f.path}\` (+${f.additions}/-${f.deletions})`)
 			}

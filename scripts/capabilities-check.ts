@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { ACTION_CATEGORIES } from '../packages/mcp/src/schema.ts'
 import { getActionsForSurface } from '../packages/core/src/capabilities/manifest.ts'
+import { ACTION_CATEGORIES } from '../packages/mcp/src/schema.ts'
 
 const CLI_COMMANDS_DIR = join(
 	import.meta.dir,

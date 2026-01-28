@@ -16,10 +16,10 @@
  * The SHA-based directory allows comparing multiple upstream versions.
  */
 
-import { basename, dirname, join } from 'path'
-import { parseArgs } from 'util'
+import { mkdir, rm } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
+import { parseArgs } from 'node:util'
 import { $, Glob } from 'bun'
-import { mkdir, rm } from 'fs/promises'
 
 const FORK_URL = 'git@github.com:outfitter-dev/agent-browser.git'
 const UPSTREAM_URL = 'git@github.com:vercel-labs/agent-browser.git'
@@ -228,9 +228,7 @@ async function fetchReleaseNotes(version: string): Promise<string | null> {
 					const data = await response.json()
 					return data.body || null
 				}
-			} catch {
-				continue
-			}
+			} catch {}
 		}
 
 		// Try latest release
@@ -487,7 +485,7 @@ Outputs to .agent-browser/analysis/<sha>/
 			file,
 		)
 		if (diff) {
-			const filename = basename(file) + '.diff'
+			const filename = `${basename(file)}.diff`
 			await Bun.write(join(outputDir, 'diffs', filename), diff)
 		}
 	}

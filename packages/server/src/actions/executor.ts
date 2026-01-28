@@ -31,8 +31,8 @@ import { CATEGORIES, getLogger } from '@outfitter/navigator-core/logging'
 import type { BrowserManager } from '../browser/manager'
 import { MarkerStore, markersToMarkdown } from '../markers'
 import type { PairedManager } from '../paired/manager'
-import type { SessionManager } from '../session/manager'
 import { SequenceExecutor } from '../sequences'
+import type { SessionManager } from '../session/manager'
 import { StepLogger } from '../session/step-logger'
 import { type WatchEvent, watchBroadcaster } from '../watch'
 
@@ -2597,10 +2597,7 @@ export class ActionExecutor {
 		if (marker1.element?.computedStyles && marker2.element?.computedStyles) {
 			const styles1 = marker1.element.computedStyles
 			const styles2 = marker2.element.computedStyles
-			const styleChanges: Record<
-				string,
-				{ before: string; after: string }
-			> = {}
+			const styleChanges: Record<string, { before: string; after: string }> = {}
 			const allKeys = new Set([
 				...Object.keys(styles1),
 				...Object.keys(styles2),
@@ -2626,10 +2623,7 @@ export class ActionExecutor {
 	/**
 	 * Resolve a marker to find the same element on the current page.
 	 */
-	private async resolveMarker(
-		id: string,
-		tab?: TabRef,
-	): Promise<ActionResult> {
+	private async resolveMarker(id: string, tab?: TabRef): Promise<ActionResult> {
 		if (!this.markerStore) {
 			return createError(
 				'No active session',
@@ -2648,7 +2642,8 @@ export class ActionExecutor {
 		if (!marker.element?.identity) {
 			return {
 				success: false,
-				error: 'Marker does not have element identity. Create markers with ref parameter for re-finding support.',
+				error:
+					'Marker does not have element identity. Create markers with ref parameter for re-finding support.',
 			}
 		}
 

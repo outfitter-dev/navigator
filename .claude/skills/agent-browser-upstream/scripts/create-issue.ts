@@ -16,7 +16,7 @@
  * The markdown body (after frontmatter) becomes the issue body.
  */
 
-import { parseArgs } from 'util'
+import { parseArgs } from 'node:util'
 import { $ } from 'bun'
 import { parse as parseYaml } from 'yaml'
 
