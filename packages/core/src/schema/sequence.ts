@@ -94,6 +94,12 @@ export type SequenceOptions = z.infer<typeof SequenceOptionsSchema>
 /** Maximum nesting depth for sequences containing other sequences */
 export const MAX_SEQUENCE_DEPTH = 3
 
+/**
+ * Maximum number of steps allowed in a single sequence.
+ * Prevents DoS via extremely long sequences that could lock resources or flood logs.
+ */
+export const MAX_SEQUENCE_STEPS = 100
+
 // ============================================================================
 // Note on Sequence Input Schema
 // ============================================================================

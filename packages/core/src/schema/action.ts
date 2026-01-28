@@ -386,12 +386,36 @@ const stepsAction = z.object({
  * Enables Ami-style efficiency (fewer round trips) while maintaining
  * Navigator's safety guarantees (Zod validation, step logging).
  *
- * Note: Uses z.any() for steps array due to circular reference constraints
- * with discriminated unions. Runtime validation happens in SequenceExecutor.
+ * ## Design Decision: z.any() for steps
+ *
+ * We use `z.any()` instead of `z.lazy()` for the steps array. This is a
+ * deliberate tradeoff:
+ *
+ * **Why not z.lazy()?**
+ * - Zod's discriminatedUnion doesn't work with z.lazy() - we'd have to use
+ *   z.union() instead, losing the 'action' field optimization
+ * - z.union() produces worse error messages ("invalid input" vs specific action errors)
+ * - Would require restructuring the entire action schema
+ *
+ * **How validation still works:**
+ * - Each step IS validated at execution time via ActionExecutor
+ * - SequenceExecutor calls executeAction() for each step, which validates via Zod
+ * - Invalid steps fail with clear errors when that step executes
+ *
+ * **Tradeoff:**
+ * - Pro: Simple schema, discriminated union preserved, partial execution possible
+ * - Con: Malformed steps discovered mid-sequence rather than upfront
+ *
+ * If fail-fast behavior is needed, SequenceExecutor can optionally validate
+ * all steps upfront before execution (without schema changes).
  */
 const sequenceAction = z.object({
 	action: z.literal('sequence'),
-	/** Array of actions to execute in sequence */
+	/**
+	 * Array of actions to execute in sequence.
+	 * Uses z.any() at schema level; validated at execution time.
+	 * See class comment for design rationale.
+	 */
 	steps: z.array(z.any()).min(1),
 	/** Parameters for {{varName}} interpolation */
 	params: z.record(z.unknown()).optional(),

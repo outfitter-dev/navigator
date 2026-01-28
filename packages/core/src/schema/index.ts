@@ -81,6 +81,7 @@ export {
 
 export {
 	MAX_SEQUENCE_DEPTH,
+	MAX_SEQUENCE_STEPS,
 	type SequenceOptions,
 	SequenceOptionsSchema,
 	type SequenceResult,

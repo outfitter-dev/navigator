@@ -425,13 +425,21 @@ const evaluateAction = z.object({
  *   ],
  *   params: { email: 'user@example.com' }
  * }
+ *
+ * Note: Steps use z.any() at schema level. This is a deliberate tradeoff -
+ * z.lazy() doesn't work with discriminatedUnion, and z.union() would produce
+ * worse error messages. Each step IS validated at execution time via the
+ * normal action validation path. See packages/core/src/schema/action.ts
+ * for detailed rationale.
  */
 const sequenceAction = z.object({
 	action: z.literal('sequence'),
 	steps: z
 		.array(z.any())
 		.min(1)
-		.describe('Array of actions to execute in sequence'),
+		.describe(
+			'Array of actions to execute in sequence (validated at execution time)',
+		),
 	params: z
 		.record(z.unknown())
 		.optional()
