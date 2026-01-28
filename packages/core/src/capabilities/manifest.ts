@@ -64,6 +64,8 @@ export const ACTION_CAPABILITIES = {
 
 export function getActionsForSurface(surface: CapabilitySurface): string[] {
 	return Object.entries(ACTION_CAPABILITIES)
-		.filter(([, capability]) => capability.surfaces.includes(surface))
+		.filter(([, capability]) =>
+			(capability.surfaces as readonly CapabilitySurface[]).includes(surface),
+		)
 		.map(([action]) => action)
 }
