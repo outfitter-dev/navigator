@@ -75,4 +75,4 @@ cat .agent-browser/analysis/$SHA/diffs/protocol.ts.diff
 
 ## Script
 
-!`bun run .claude/skills/agent-browser-upstream/scripts/generate-diff.ts $ARGUMENTS 2>&1`
+!`( cd "$(git rev-parse --show-toplevel)" && bun run .claude/skills/agent-browser-upstream/scripts/generate-diff.ts $ARGUMENTS 2>&1 )`
