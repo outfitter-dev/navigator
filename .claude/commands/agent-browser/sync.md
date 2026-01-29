@@ -35,4 +35,4 @@ $ARGUMENTS
 
 ### Current Status
 
-!`bun run .claude/skills/agent-browser-upstream/scripts/analyze-upstream.ts --format summary 2>&1`
+!`( cd "$(git rev-parse --show-toplevel)" && bun run .claude/skills/agent-browser-upstream/scripts/analyze-upstream.ts --format summary 2>&1 )`
