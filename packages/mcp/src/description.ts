@@ -40,6 +40,12 @@ Selectors can be used instead of refs for most element actions: \`selector: ".bt
 - \`markerGet\`, \`markerRead\`: retrieve marker details
 - \`markerCompare\`: compare two markers
 - \`markerDelete\`: delete a marker
+
+**Sequences**:
+Execute multiple actions in one call with \`{{var}}\` interpolation:
+\`\`\`json
+{"action":"sequence","steps":[{"action":"navigate","url":"{{url}}"},{"action":"snap"}],"params":{"url":"https://..."},"stopOnError":true}
+\`\`\`
 `
 }
 
@@ -86,6 +92,7 @@ function formatActionCategories(): string {
 		sessions: 'sessions(limit?)',
 		steps: 'steps(sessionId?, limit?)',
 		evaluate: 'evaluate(script, args?)',
+		sequence: 'sequence(steps[], params?, stopOnError?)',
 	}
 
 	const mcpActions = new Set(getActionsForSurface('mcp'))

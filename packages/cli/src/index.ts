@@ -23,6 +23,7 @@ import { registerDoctorCommand } from './commands/doctor.js'
 import { registerInteractionCommands } from './commands/interaction.js'
 import { registerMarkerCommands } from './commands/markers.js'
 import { registerNavigationCommands } from './commands/navigation.js'
+import { registerSequenceCommand } from './commands/sequence.js'
 import { registerServerCommands } from './commands/server.js'
 import { registerSessionCommands } from './commands/session.js'
 import { registerTabCommands } from './commands/tabs.js'
@@ -111,6 +112,9 @@ registerTabCommands(program, getClient)
 
 // Session: session, steps
 registerSessionCommands(program, getClient)
+
+// Sequence: sequence
+registerSequenceCommand(program, getClient)
 
 // Server: server start|status|stop
 registerServerCommands(program, getClient)
